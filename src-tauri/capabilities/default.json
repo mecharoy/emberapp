@@ -1,0 +1,51 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "sql:default",
+    "sql:allow-execute",
+    "sql:allow-select",
+    "sql:allow-load",
+    "notification:default",
+    "dialog:allow-save",
+    "fs:allow-write-text-file",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://api.anthropic.com/*"
+        },
+        {
+          "url": "https://api.groq.com/*"
+        },
+        {
+          "url": "https://generativelanguage.googleapis.com/*"
+        },
+        {
+          "url": "https://openrouter.ai/*"
+        },
+        {
+          "url": "https://api.cerebras.ai/*"
+        },
+        {
+          "url": "https://api.mistral.ai/*"
+        },
+        {
+          "url": "https://github.com/*"
+        },
+        {
+          "url": "https://objects.githubusercontent.com/*"
+        },
+        {
+          "url": "https://release-assets.githubusercontent.com/*"
+        }
+      ]
+    }
+  ]
+}

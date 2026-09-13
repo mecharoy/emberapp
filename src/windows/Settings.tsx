@@ -1,0 +1,571 @@
+import { useEffect, useState } from "react";
+import { getAllSettings, setSetting } from "../db/settings";
+import type { SettingKey } from "../db/types";
+import { exportEverything, deleteEverything } from "../db/exporter";
+import { getApiKey, setApiKey, getCloudApiKey, setCloudApiKey } from "../secrets";
+import { createAnthropicProvider } from "../ai/providers/anthropic";
+import { CLOUD_PRESETS, createCloudProvider } from "../ai/providers/cloud";
+import { ProviderError } from "../ai/types";
+import DocumentsManager from "../components/DocumentsManager";
+import type { Instrument } from "../db/types";
+import UpdatesAndFeedback from "../components/UpdatesAndFeedback";
+import PromptViewer from "../components/PromptViewer";
+import { PaperPicker } from "../components/EntryFields";
+import { paperById } from "../components/paper";
+import { INSTRUMENT_ORDER, INSTRUMENTS, parseEnabledInstruments } from "../insights/assessments";
+import { androidBridge } from "../androidBridge";
+import { ensureNotificationPermission } from "../scheduler";
+
+type FormState = Record<SettingKey, string>;
+
+const INSIGHT_MODULES = [
+  { id: "mood", label: "Mood & energy" },
+  { id: "rhythm", label: "Week rhythm" },
+  { id: "themes", label: "Themes" },
+  { id: "people", label: "People" },
+  { id: "habits", label: "Habits" },
+  { id: "movers", label: "What moves your mood" },
+  { id: "emotions", label: "Emotional vocabulary" },
+  { id: "wellbeing", label: "Wellbeing checks" },
+  { id: "sleep", label: "Sleep" },
+  { id: "routine", label: "Daily routine" },
+  { id: "activities", label: "Activities & mood" },
+  { id: "thinking", label: "Thinking patterns" },
+  { id: "reviews", label: "Weekly & monthly reviews" },
+] as const;
+
+export default function Settings() {
+  const [form, setForm] = useState<FormState | null>(null);
+  const [apiKey, setApiKeyState] = useState("");
+  const [cloudKey, setCloudKeyState] = useState("");
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  // The chat reads the saved settings, not this form, so an unsaved switch of
+  // provider looks like it worked here and fails there. Tracked to say so.
+  const [dirty, setDirty] = useState(false);
+  const [exportState, setExportState] = useState<
+    { status: "idle" } | { status: "working" } | { status: "done"; names: string[] } | { status: "error"; message: string }
+  >({ status: "idle" });
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [showDelete, setShowDelete] = useState(false);
+  // The note field in the notification drawer; lives on the Android side and
+  // applies at once, without Save. null = not running on Android.
+  const [drawerNote, setDrawerNote] = useState<boolean | null>(() => androidBridge()?.isQuickNoteEnabled() ?? null);
+  const [testState, setTestState] = useState<
+    { status: "idle" } | { status: "testing" } | { status: "ok" } | { status: "error"; message: string }
+  >({ status: "idle" });
+
+  useEffect(() => {
+    getAllSettings().then((s) => {
+      // A provider the phone doesn't have (copied settings, an old default)
+      // shows as the free hosted one, which is what the chat will use.
+      setForm(s.provider === "anthropic" || s.provider === "cloud" ? s : { ...s, provider: "cloud" });
+    });
+    getApiKey().then(setApiKeyState).catch(() => {});
+    getCloudApiKey().then(setCloudKeyState).catch(() => {});
+  }, []);
+
+  /** Switching to the free hosted provider with nothing configured yet fills
+   *  in the first preset, so the endpoint and model fields are never blank. */
+  function selectProvider(value: string) {
+    setForm((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, provider: value };
+      if (value === "cloud") {
+        const preset = CLOUD_PRESETS.find((p) => p.baseUrl === prev.cloud_api_base) ?? CLOUD_PRESETS[0];
+        next.cloud_api_base = preset.baseUrl;
+        next.model = preset.model;
+        next.cloud_max_tokens = String(preset.maxTokens);
+      } else if (value === "anthropic" && !prev.model.startsWith("claude")) {
+        next.model = "claude-sonnet-5";
+      }
+      return next;
+    });
+    setSavedAt(null);
+    setDirty(true);
+    setTestState({ status: "idle" });
+  }
+
+  function update<K extends SettingKey>(key: K, value: string) {
+    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+    setSavedAt(null);
+    setDirty(true);
+  }
+
+  // Only the keys this page edits — writing the whole form back would clobber
+  // scheduler-owned keys (reminder_last_fired etc.) with a stale snapshot.
+  const EDITABLE_KEYS: SettingKey[] = [
+    "user_name",
+    "reminder_time",
+    "voice",
+    "chat_length_preference",
+    "journal_paper",
+    "provider",
+    "model",
+    "cloud_api_base",
+    "cloud_max_tokens",
+    "hidden_modules",
+    "assessments_enabled",
+    "update_source",
+    "update_auto_check",
+  ];
+
+  async function handleSave() {
+    if (!form) return;
+    await Promise.all([
+      ...EDITABLE_KEYS.map((key) => setSetting(key, form[key])),
+      setApiKey(apiKey), // the app's private key store, never the database
+      setCloudApiKey(cloudKey),
+    ]);
+    setSavedAt(Date.now());
+    setDirty(false);
+  }
+
+  function toggleInstrument(id: Instrument) {
+    if (!form) return;
+    const on = new Set(parseEnabledInstruments(form.assessments_enabled));
+    if (on.has(id)) on.delete(id);
+    else on.add(id);
+    update("assessments_enabled", INSTRUMENT_ORDER.filter((i) => on.has(i)).join(","));
+  }
+
+  function toggleModule(id: string) {
+    if (!form) return;
+    const hidden = new Set(form.hidden_modules.split(",").map((s) => s.trim()).filter(Boolean));
+    if (hidden.has(id)) hidden.delete(id);
+    else hidden.add(id);
+    update("hidden_modules", Array.from(hidden).join(","));
+  }
+
+  async function handleExport() {
+    setExportState({ status: "working" });
+    try {
+      const names = await exportEverything();
+      setExportState(names.length > 0 ? { status: "done", names } : { status: "idle" });
+    } catch (e) {
+      setExportState({ status: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function handleDeleteEverything() {
+    if (deleteConfirm !== "delete") return;
+    await deleteEverything();
+    await setApiKey("");
+    await setCloudApiKey("");
+    window.location.reload(); // fresh app state — onboarding will greet again
+  }
+
+  async function handleTestConnection() {
+    // Save before testing: otherwise a passing test proves nothing about the
+    // provider the chat will pick up, which is the saved one.
+    if (dirty) await handleSave();
+    setTestState({ status: "testing" });
+    try {
+      const provider =
+        form?.provider === "anthropic"
+          ? createAnthropicProvider({
+              apiKey,
+              model: form?.model || "claude-sonnet-5",
+            })
+          : createCloudProvider({
+              baseUrl: form?.cloud_api_base ?? "",
+              model: form?.model || "qwen/qwen3.6-27b",
+              apiKey: cloudKey,
+              maxTokens: Number(form?.cloud_max_tokens) || undefined,
+            });
+      const reply = await provider.complete(
+        [{ role: "user", content: "Reply with only the word: connected" }],
+        "You are a connectivity check. Follow the instruction exactly.",
+      );
+      if (reply.trim().length === 0) throw new ProviderError("Got an empty response back.");
+      setTestState({ status: "ok" });
+    } catch (e) {
+      const message =
+        e instanceof ProviderError
+          ? [e.message, e.hint].filter(Boolean).join(" ")
+          : e instanceof Error
+            ? e.message
+            : "Connection test failed.";
+      setTestState({ status: "error", message });
+    }
+  }
+
+  if (!form) {
+    return <div className="px-5 pt-6 text-[14px] text-ink-faint">Loading settings&hellip;</div>;
+  }
+
+  const hiddenSet = new Set(form.hidden_modules.split(",").map((s) => s.trim()).filter(Boolean));
+  const selectedPreset = CLOUD_PRESETS.find((p) => p.baseUrl === form.cloud_api_base);
+  const testButton = (disabled: boolean) => (
+    <div className="flex flex-col gap-2">
+      <button onClick={handleTestConnection} disabled={testState.status === "testing" || disabled} className="btn-subtle self-start">
+        {testState.status === "testing" ? "Testing…" : "Test the connection"}
+      </button>
+      {testState.status === "ok" && <span className="text-[13.5px] text-moss">Connected.</span>}
+      {testState.status === "error" && <span className="text-[13.5px] text-danger">{testState.message}</span>}
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <div className="px-5 pb-2 pt-4">
+        <h1 className="page-title">Settings</h1>
+      </div>
+
+      <Section title="AI provider">
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Provider">
+          {[
+            { id: "cloud", name: "Free hosted model", blurb: "Groq, Gemini, OpenRouter…" },
+            { id: "anthropic", name: "Anthropic", blurb: "Claude, pay as you go" },
+          ].map((p) => (
+            <button
+              key={p.id}
+              role="radio"
+              aria-checked={form.provider === p.id}
+              onClick={() => selectProvider(p.id)}
+              className={`rounded-xl border px-3.5 py-3 text-left transition-colors duration-200 ${
+                form.provider === p.id ? "border-ember/60 bg-ember-wash/50" : "border-rule bg-sheet/50"
+              }`}
+            >
+              <span className="block text-[14.5px] text-ink">{p.name}</span>
+              <span className="mt-0.5 block text-[12.5px] text-ink-faint">{p.blurb}</span>
+            </button>
+          ))}
+        </div>
+
+        {form.provider === "cloud" && (
+          <>
+            <Field label="Service">
+              <select
+                className="input"
+                value={selectedPreset?.id ?? "custom"}
+                onChange={(e) => {
+                  const preset = CLOUD_PRESETS.find((p) => p.id === e.target.value);
+                  if (!preset) return;
+                  update("cloud_api_base", preset.baseUrl);
+                  update("model", preset.model);
+                  update("cloud_max_tokens", String(preset.maxTokens));
+                }}
+              >
+                {CLOUD_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+                {!selectedPreset && <option value="custom">Custom endpoint</option>}
+              </select>
+              {selectedPreset && (
+                <span className="hint">
+                  {selectedPreset.note} Get a key at <span className="break-all text-ink-soft">{selectedPreset.keysUrl}</span>.
+                </span>
+              )}
+            </Field>
+
+            <Field label="API key">
+              <input
+                type="password"
+                autoComplete="off"
+                className="input"
+                value={cloudKey}
+                onChange={(e) => {
+                  setCloudKeyState(e.target.value);
+                  setDirty(true);
+                }}
+                placeholder="Paste the key from the provider's site"
+              />
+              <span className="hint">
+                Kept in Ember&rsquo;s private storage on this phone, never in the journal database. Free tiers are
+                rate-limited, and some providers may use free requests to train on.
+              </span>
+            </Field>
+
+            <Field label="Model">
+              <input
+                className="input"
+                autoCapitalize="off"
+                autoCorrect="off"
+                value={form.model}
+                onChange={(e) => update("model", e.target.value)}
+                placeholder={selectedPreset?.model || "qwen/qwen3.6-27b"}
+              />
+            </Field>
+
+            <details className="group">
+              <summary className="cursor-pointer list-none text-[14px] text-ink-soft">
+                <span className="mr-1.5 inline-block transition-transform group-open:rotate-90">&rsaquo;</span>
+                Advanced
+              </summary>
+              <div className="mt-4 flex flex-col gap-5">
+                <Field label="Endpoint address">
+                  <input
+                    className="input"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    value={form.cloud_api_base}
+                    onChange={(e) => update("cloud_api_base", e.target.value)}
+                    placeholder="https://api.groq.com/openai/v1/chat/completions"
+                  />
+                  <span className="hint">
+                    Must be one of the services above &mdash; Ember&rsquo;s network policy blocks every other host.
+                  </span>
+                </Field>
+                <Field label="Longest reply (tokens)">
+                  <input
+                    className="input"
+                    inputMode="numeric"
+                    value={form.cloud_max_tokens}
+                    onChange={(e) => update("cloud_max_tokens", e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder={String(selectedPreset?.maxTokens ?? 900)}
+                  />
+                  <span className="hint">
+                    Free tiers cap how much a model may write per minute and refuse a request that asks for more, so
+                    this stays low. Raising it can make weekly reviews read better &mdash; and can make every reply fail.
+                  </span>
+                </Field>
+              </div>
+            </details>
+
+            {testButton(!cloudKey || !form.cloud_api_base)}
+          </>
+        )}
+
+        {form.provider === "anthropic" && (
+          <>
+            <Field label="Anthropic API key">
+              <input
+                type="password"
+                autoComplete="off"
+                className="input"
+                value={apiKey}
+                onChange={(e) => {
+                  setApiKeyState(e.target.value);
+                  setDirty(true);
+                }}
+                placeholder="sk-ant-..."
+              />
+              <span className="hint">
+                From console.anthropic.com. Kept in Ember&rsquo;s private storage on this phone, never in the journal
+                database.
+              </span>
+            </Field>
+            <Field label="Model">
+              <input
+                className="input"
+                autoCapitalize="off"
+                autoCorrect="off"
+                value={form.model}
+                onChange={(e) => update("model", e.target.value)}
+                placeholder="claude-sonnet-5"
+              />
+            </Field>
+            {testButton(!apiKey)}
+          </>
+        )}
+      </Section>
+
+      <Section title="You">
+        <Field label="Your name">
+          <input className="input" value={form.user_name} onChange={(e) => update("user_name", e.target.value)} placeholder="What should Ember call you?" />
+        </Field>
+        <Field label="Evening reminder">
+          <input type="time" className="input w-40" value={form.reminder_time} onChange={(e) => update("reminder_time", e.target.value)} />
+          <span className="hint">A notification at this time on evenings you haven&rsquo;t written yet.</span>
+        </Field>
+        <Field label="Journal voice">
+          <select className="input" value={form.voice} onChange={(e) => update("voice", e.target.value)}>
+            <option value="first">First person (&ldquo;I had a rough day...&rdquo;)</option>
+            <option value="second">Second person (&ldquo;You had a rough day...&rdquo;)</option>
+          </select>
+        </Field>
+        <Field label="Evening conversation length">
+          <select
+            className="input"
+            value={form.chat_length_preference === "quick" ? "quick" : "standard"}
+            onChange={(e) => update("chat_length_preference", e.target.value)}
+          >
+            <option value="standard">Standard (about 8 to 10 exchanges)</option>
+            <option value="quick">Brief (3 or 4 exchanges)</option>
+          </select>
+        </Field>
+        {drawerNote !== null && (
+          <label className="flex items-center justify-between gap-4">
+            <span className="label">
+              Quick note in the notification drawer
+              <span className="hint mt-0.5 block">
+                Pull down and type a note without opening Ember. There is also an &ldquo;Ember note&rdquo; tile to add to
+                Quick Settings.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={drawerNote}
+              onChange={async (e) => {
+                const on = e.target.checked;
+                if (on) await ensureNotificationPermission();
+                androidBridge()?.setQuickNoteEnabled(on);
+                setDrawerNote(on);
+              }}
+              className="h-5 w-5 shrink-0 accent-ember"
+            />
+          </label>
+        )}
+        <div className="flex flex-col gap-2">
+          <span className="label">Paper for new entries</span>
+          <PaperPicker value={paperById(form.journal_paper).id} onChange={(id) => update("journal_paper", id)} />
+          <span className="hint">Any entry can have its own paper too: pick one above the page.</span>
+        </div>
+      </Section>
+
+      <Section title="Your documents" note="Changes here apply straight away, no need to save.">
+        <p className="hint">
+          Add .md or .txt files you want Ember to know about: notes on you, your goals, what you&rsquo;re working
+          through. Ticked files go into every evening conversation. Ember keeps its own copy, so add a file again after
+          you edit it. Removing one here never touches the original.
+        </p>
+        <DocumentsManager />
+      </Section>
+
+      <Section title="Wellbeing questionnaires">
+        <p className="hint">
+          Standard questionnaires doctors use for screening, offered every two weeks at the evening check-in. Your
+          answers stay on this phone; only totals go into Ember&rsquo;s reviews. A score is not a diagnosis.
+        </p>
+        <div className="flex flex-col gap-3">
+          {INSTRUMENT_ORDER.map((id) => (
+            <label key={id} className="flex items-start gap-3 text-[15px] text-ink">
+              <input
+                type="checkbox"
+                checked={parseEnabledInstruments(form.assessments_enabled).includes(id)}
+                onChange={() => toggleInstrument(id)}
+                className="mt-1 h-5 w-5 shrink-0 accent-ember"
+              />
+              <span>
+                {INSTRUMENTS[id].name}
+                <span className="block text-[13px] text-ink-faint">{INSTRUMENTS[id].what}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Insights">
+        <p className="hint">Hide any section of the Insights page. Nothing is deleted, and you can bring it back any time.</p>
+        <div className="grid grid-cols-1 gap-y-3 min-[380px]:grid-cols-2 min-[380px]:gap-x-3">
+          {INSIGHT_MODULES.map((m) => (
+            <label key={m.id} className="flex items-center gap-3 text-[14.5px] text-ink">
+              <input type="checkbox" checked={!hiddenSet.has(m.id)} onChange={() => toggleModule(m.id)} className="h-5 w-5 shrink-0 accent-ember" />
+              {m.label}
+            </label>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Ember's instructions">
+        <p className="hint">The instructions Ember works from, so you can see what it is asked to do with your words.</p>
+        <PromptViewer />
+      </Section>
+
+      <Section title="Updates & feedback">
+        <UpdatesAndFeedback
+          source={form.update_source}
+          autoCheck={form.update_auto_check === "1"}
+          onAutoCheckChange={(v) => update("update_auto_check", v ? "1" : "")}
+          onSave={handleSave}
+        />
+      </Section>
+
+      <Section title="Your data">
+        <p className="hint">
+          Everything lives in one database on this phone. No tracking, no accounts, no sync, and it isn&rsquo;t
+          included in the phone&rsquo;s cloud backup, so export now and then to keep a copy. Your words do go to the
+          AI provider you chose. Ember helps you reflect; it is not therapy. If you&rsquo;re ever in crisis, please
+          reach out to someone you trust or to local emergency services.
+        </p>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button onClick={handleExport} disabled={exportState.status === "working"} className="btn-subtle">
+            {exportState.status === "working" ? "Exporting…" : "Export everything"}
+          </button>
+          {!showDelete && (
+            <button onClick={() => setShowDelete(true)} className="btn-danger">
+              Full reset
+            </button>
+          )}
+        </div>
+        {exportState.status === "done" && (
+          <p className="text-[13.5px] text-moss">
+            Saved:{" "}
+            {exportState.names.map((n) => (
+              <span key={n} className="block break-all text-ink-faint">
+                {n}
+              </span>
+            ))}
+          </p>
+        )}
+        {exportState.status === "error" && <p className="text-[13.5px] text-danger">{exportState.message}</p>}
+        {showDelete && (
+          <div className="fade-up flex flex-col gap-3 rounded-xl bg-danger-wash px-4 py-3.5">
+            <p className="text-[13.5px] leading-relaxed text-danger">
+              This erases every entry, note, conversation, insight and setting on this phone, removes the API keys, and
+              takes Ember back to its first-run screen. It can&rsquo;t be undone, so export first if you want a copy.
+              Type <b>delete</b> to confirm.
+            </p>
+            <input
+              className="input"
+              autoCapitalize="off"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder="delete"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDeleteEverything}
+                disabled={deleteConfirm !== "delete"}
+                className="min-h-[42px] rounded-lg bg-danger px-4 py-2 text-[14px] font-medium text-paper transition-opacity disabled:opacity-40"
+              >
+                Erase everything
+              </button>
+              <button
+                onClick={() => {
+                  setShowDelete(false);
+                  setDeleteConfirm("");
+                }}
+                className="btn-ghost"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* Stays in reach at the bottom of the screen however far down you are. */}
+      <div className="sticky bottom-0 mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-rule bg-paper/95 px-5 py-3">
+        <button onClick={handleSave} className="btn-primary">
+          Save settings
+        </button>
+        {savedAt && !dirty && <span className="fade-up text-[13px] text-ink-faint">Saved</span>}
+        {dirty && <span className="flex-1 text-[12.5px] leading-snug text-ember">Not saved yet &mdash; Ember still uses the saved settings.</span>}
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-4 border-t border-rule px-5 py-6 first-of-type:border-t-0">
+      <div>
+        <h2 className="section-title">{title}</h2>
+        {note && <p className="hint mt-0.5">{note}</p>}
+      </div>
+      <div className="flex min-w-0 flex-col gap-5">{children}</div>
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="label">{label}</span>
+      {children}
+    </label>
+  );
+}
