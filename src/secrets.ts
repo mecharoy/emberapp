@@ -1,6 +1,6 @@
 // API keys for the AI providers, kept in the app's private storage (lib.rs).
 // The Rust side whitelists the secret names, so this file is the only channel
-// and it can only touch these two credentials.
+// and it can only touch these two credentials and the install id.
 
 import { invoke } from "@tauri-apps/api/core";
 import { getSetting, setSetting } from "./db/settings";
@@ -62,4 +62,14 @@ export async function getCloudApiKey(): Promise<string> {
 /** Empty string deletes the credential. */
 export async function setCloudApiKey(value: string): Promise<void> {
   await writeSecret(CLOUD_KEY_NAME, "cloud_api_key", value);
+}
+
+/** This install's id, kept beside the keys so backups never carry it.
+ *  Throws if the private store can't be read. */
+export async function getLocalInstallId(): Promise<string> {
+  return (await invoke<string | null>("secret_get", { name: "install_id" })) ?? "";
+}
+
+export async function setLocalInstallId(value: string): Promise<void> {
+  await invoke("secret_set", { name: "install_id", value });
 }

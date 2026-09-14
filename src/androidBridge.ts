@@ -12,6 +12,9 @@ interface EmberAndroid {
   saveBackupCopy(): string;
   /** Closes Ember and starts it again. */
   restartApp(): void;
+  /** Opens the file picker in Documents/Ember and copies the pick next to
+   *  ember.db. Answers through window.__emberBackupPicked (see backup.ts). */
+  pickBackup(): void;
 }
 
 export function androidBridge(): EmberAndroid | undefined {

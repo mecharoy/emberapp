@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { counselorSystemPrompt, counselorTurnPreamble } from "./counselor";
 import { buildJournalUserPrompt } from "./journal";
 import { buildExtractorUserPrompt } from "./extractor";
+import { DEFAULT_STYLE, parseStyle, type ConversationStyle } from "./style";
 
 describe("counselorSystemPrompt", () => {
   const layers = {
@@ -18,8 +19,37 @@ describe("counselorSystemPrompt", () => {
     openThreads: "- ruminating after work hours (last came up 2026-07-07)",
     weeklyLetter: "Dear Amy, a steadier week than it felt.",
     documents: ["--- about-me.md ---", "Runs to clear their head.", "--- end of about-me.md ---"].join("\n"),
+    dayParts: ["1. waking up (07:10) → lunch (13:00)", "2. lunch (13:00) → evening break (18:30)", "3. evening break (18:30) → now — dinner not yet"].join("\n"),
+    style: DEFAULT_STYLE as ConversationStyle,
     daysSinceLastEntry: 1,
   };
+
+  it("walks the day in its parts before going deep", () => {
+    const prompt = counselorSystemPrompt(layers);
+    expect(prompt).toContain("Their day in parts");
+    expect(prompt).toContain("one part per question, in order");
+    expect(prompt).toContain("Once every part has been covered, pick the ONE thing");
+    expect(prompt).toContain("In a quick session, walk the day in two questions");
+  });
+
+  it("falls back to the default style for unknown settings", () => {
+    expect(parseStyle("shouty", "")).toEqual(DEFAULT_STYLE);
+    expect(parseStyle("blunt", "friend")).toEqual({ tone: "blunt", approach: "friend" });
+  });
+
+  it("carries the tone and approach they picked, and the approach sets the pattern limit", () => {
+    const friend = counselorSystemPrompt({ ...layers, style: { tone: "gentle", approach: "friend" } });
+    expect(friend).toContain("- Tone: Gentle. Soft, unhurried");
+    expect(friend).toContain("- Approach: Friend. Mostly listen");
+    expect(friend).toContain("Max ONE reference to past patterns");
+    const therapist = counselorSystemPrompt({ ...layers, style: { tone: "blunt", approach: "therapist" } });
+    expect(therapist).toContain("- Tone: Blunt.");
+    expect(therapist).toContain("- Approach: Therapist-style.");
+    expect(therapist).toContain("never diagnose");
+    expect(therapist).toContain("Max two references to past patterns");
+    // Safety holds in every style.
+    for (const p of [friend, therapist]) expect(p).toContain("NEVER invent phone numbers");
+  });
 
   it("uses the check-in instead of asking for it again", () => {
     const prompt = counselorSystemPrompt(layers);
@@ -29,10 +59,10 @@ describe("counselorSystemPrompt", () => {
 
   it("keeps a private checklist of what a full entry needs", () => {
     const prompt = counselorSystemPrompt(layers);
-    for (const item of ["Timeline", "Mood arc", "One thread in depth", "One win", "Body", "People", "Worries and loose ends"]) {
+    for (const item of ["The whole day, part by part", "Mood arc", "One thread in depth", "One win", "Body", "People", "Worries and loose ends"]) {
       expect(prompt).toContain(item);
     }
-    expect(prompt).toContain("Never run it as a list of questions");
+    expect(prompt).toContain("never fire the other items off as a list");
   });
 
   it("teaches the write-journal marker, only after they agree or ask", () => {

@@ -51,7 +51,9 @@ Include each part the material supports, roughly in this order, as flowing
 prose in short paragraphs (no headings, no lists inside the narrative):
 1. The shape of the day — what happened, in order (morning, afternoon,
    evening), with the concrete details they gave: places, people, what was
-   said, what they did.
+   said, what they did. The check-in's lunch, evening break and dinner times
+   help place things; a skipped meal is worth a mention only if they made
+   something of it.
 2. How it felt — the mood arc and where it turned, in their own feeling
    words where they gave any, and their check-in numbers if given ("a 4 out
    of 10 kind of day").

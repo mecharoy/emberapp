@@ -8,7 +8,7 @@ import Journal from "./windows/Journal";
 import Insights from "./windows/Insights";
 import Settings from "./windows/Settings";
 import type { JournalFocus } from "./windows/navigation";
-import { getSetting } from "./db/settings";
+import { firstRunScreen, type FirstRunScreen } from "./install";
 import { localDateKey } from "./db/captures";
 import { conversationState } from "./db/sessions";
 import { startScheduler } from "./scheduler";
@@ -28,7 +28,7 @@ function App() {
   // Bumped when the Journal tab deletes, moves or writes the entry of the day
   // Today shows, so Today reloads instead of chatting on into a stale session.
   const [todayVersion, setTodayVersion] = useState(0);
-  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
+  const [firstRun, setFirstRun] = useState<FirstRunScreen | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
   const liveDayRef = useRef(liveDay);
   liveDayRef.current = liveDay;
@@ -36,7 +36,7 @@ function App() {
   activeRef.current = active;
 
   useEffect(() => {
-    getSetting("onboarded").then((v) => setNeedsOnboarding(v !== "1"));
+    firstRunScreen().then(setFirstRun);
     startScheduler(); // reminders, missed-day skips, weekly review
     // The daily copy in Documents/Ember: on opening, and when Ember is put away.
     backupIfDue();
@@ -132,7 +132,9 @@ function App() {
       <BottomNav active={active} onSelect={handleSelect} />
       <QuickNote open={noteOpen} onClose={() => setNoteOpen(false)} />
       <NoteSheetBack open={noteOpen} onClose={() => setNoteOpen(false)} />
-      {needsOnboarding === true && <Onboarding onDone={() => setNeedsOnboarding(false)} />}
+      {(firstRun === "setup" || firstRun === "welcome-back") && (
+        <Onboarding welcomeBack={firstRun === "welcome-back"} onDone={() => setFirstRun("none")} />
+      )}
     </div>
   );
 }

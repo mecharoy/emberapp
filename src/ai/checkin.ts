@@ -16,6 +16,18 @@ export interface CheckInSummary {
   wakeTime: string | null;
   sleepLatencyMin: number | null;
   sleepQuality: number | null;
+  /** Where the day splits: "HH:MM", "not-yet", "skipped", or null when blank. */
+  lunch: DayPoint;
+  eveningBreak: DayPoint;
+  dinner: DayPoint;
+}
+
+export type DayPoint = string | "not-yet" | "skipped" | null;
+
+/** Anything else stored in a day-point column counts as blank. */
+function toDayPoint(v: string | null | undefined): DayPoint {
+  if (v === "not-yet" || v === "skipped") return v;
+  return v && /^\d{2}:\d{2}$/.test(v) ? v : null;
 }
 
 export function isEmptyCheckIn(c: CheckInSummary): boolean {
@@ -29,7 +41,10 @@ export function isEmptyCheckIn(c: CheckInSummary): boolean {
     !c.bedtime &&
     !c.wakeTime &&
     c.sleepLatencyMin === null &&
-    c.sleepQuality === null
+    c.sleepQuality === null &&
+    c.lunch === null &&
+    c.eveningBreak === null &&
+    c.dinner === null
   );
 }
 
@@ -58,6 +73,9 @@ export function toCheckInSummary(row: CheckIn | null): CheckInSummary | null {
     wakeTime: row.wake_time || null,
     sleepLatencyMin: row.sleep_latency_min ?? null,
     sleepQuality: row.sleep_quality ?? null,
+    lunch: toDayPoint(row.lunch),
+    eveningBreak: toDayPoint(row.evening_break),
+    dinner: toDayPoint(row.dinner),
   };
   return isEmptyCheckIn(summary) ? null : summary;
 }
@@ -81,7 +99,50 @@ export function formatCheckInForPrompt(c: CheckInSummary | null): string {
   if (habits.length > 0) {
     lines.push(`- habits today: ${habits.map(([k, done]) => `${k} ${done ? "done" : "not done"}`).join(", ")}`);
   }
+  for (const [label, point] of dayPoints(c)) {
+    if (point) lines.push(`- ${label}: ${point === "not-yet" ? "not yet" : point}`);
+  }
   return lines.join("\n");
+}
+
+function dayPoints(c: CheckInSummary | null): [string, DayPoint][] {
+  return [
+    ["lunch", c?.lunch ?? null],
+    ["evening break", c?.eveningBreak ?? null],
+    ["dinner", c?.dinner ?? null],
+  ];
+}
+
+/**
+ * The day in the parts the conversation walks through, split at waking up,
+ * lunch, the evening break and dinner. A skipped point merges the parts on
+ * either side; a point that hasn't happened yet ends the day at "now" (or, for
+ * an earlier day, at the end of that day). Blank points still split the day,
+ * without a time. One numbered line per part.
+ */
+export function formatDayParts(c: CheckInSummary | null, opts: { lookingBack?: boolean } = {}): string {
+  const end = opts.lookingBack ? "the end of the day" : "now";
+  const parts: string[] = [];
+  let from = c?.wakeTime ? `waking up (${c.wakeTime})` : "waking up";
+  let skipped: string[] = [];
+  let notYet: string | null = null;
+  for (const [label, point] of dayPoints(c)) {
+    if (point === "skipped") {
+      skipped.push(label);
+      continue;
+    }
+    if (point === "not-yet") {
+      notYet = label;
+      break;
+    }
+    const to = point ? `${label} (${point})` : `${label} (time not given)`;
+    parts.push(`${from} → ${to}${skipped.length ? ` — no ${skipped.join(" or ")} today` : ""}`);
+    skipped = [];
+    from = to;
+  }
+  const notes = [...(skipped.length ? [`no ${skipped.join(" or ")} today`] : []), ...(notYet ? [`${notYet} not yet`] : [])];
+  parts.push(`${from} → ${end}${notes.length ? ` — ${notes.join(", ")}` : ""}`);
+  return parts.map((p, i) => `${i + 1}. ${p}`).join("\n");
 }
 
 /** "tired, a bit anxious and hopeful" → ["tired", "a bit anxious", "hopeful"].

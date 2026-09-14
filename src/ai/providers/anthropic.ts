@@ -5,6 +5,8 @@ import { fetchWithRetry, TRANSIENT_STATUSES } from "./retry";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
+/** Where people create a key (console.anthropic.com now redirects here). */
+export const ANTHROPIC_KEYS_URL = "https://platform.claude.com/settings/keys";
 // Sized for the largest job (weekly review: letter + cards + a ≤400-word
 // profile rewrite); chat turns are short regardless — the prompt enforces that.
 const MAX_TOKENS = 4096;

@@ -2,12 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { localDateKey } from "../db/captures";
 import { setProfileSummary } from "../db/profile";
 import { composeSeedProfile } from "../db/profileSeed";
-import { setSetting } from "../db/settings";
-import { CLOUD_PRESETS } from "../ai/providers/cloud";
+import { getAllSettings, setSetting } from "../db/settings";
+import { CLOUD_PRESETS, presetForBaseUrl } from "../ai/providers/cloud";
+import { ANTHROPIC_KEYS_URL } from "../ai/providers/anthropic";
+import KeyLink from "./KeyLink";
 import { setApiKey, setCloudApiKey } from "../secrets";
 import { ensureNotificationPermission } from "../scheduler";
 import { SCIENCE_HIGHLIGHTS } from "../insights/science";
-import { restoreFromFile } from "../backup";
+import { claimJournal } from "../install";
+import RestoreBackup from "./RestoreBackup";
+import StylePicker from "./StylePicker";
+import { DEFAULT_STYLE, type ConversationStyle } from "../ai/prompts/style";
 
 const PROVIDERS = [
   {
@@ -18,13 +23,13 @@ const PROVIDERS = [
   {
     id: "anthropic",
     name: "Anthropic API key",
-    blurb: "Claude, pay as you go with a key from console.anthropic.com. A few cents a day.",
+    blurb: "Claude, pay as you go with a key from Anthropic. A few cents a day.",
   },
 ] as const;
 
 /** Getting-to-know-you questions (step 2). Each answer maps to a context
- * layer the counselor actually uses:
- * routine, people, open threads, goals, coping style, and tone preference.
+ * layer the counselor actually uses: routine, people, open threads, goals and
+ * coping style. How Ember should talk is picked above them (StylePicker).
  * Labels are third-person because the profile is injected into the counselor
  * prompt as "About them: {profile_summary}". All optional. */
 const QUESTIONS = [
@@ -52,11 +57,6 @@ const QUESTIONS = [
     label: "On hard days",
     prompt: "When a day goes badly, how do you usually cope?",
     placeholder: "What helps, what you tend to do",
-  },
-  {
-    label: "How to talk with them",
-    prompt: "How should Ember be with you?",
-    placeholder: "Gentle? Direct? Push back sometimes? Keep it brief?",
   },
 ] as const;
 
@@ -191,25 +191,70 @@ function IntroVideo({ scrollerRef, onSettled }: { scrollerRef: React.RefObject<H
  * get-to-know-you questions that seed the AI's profile so the first evening
  * conversation is already personal. "Skip" stays a first-class exit at both
  * steps. */
-export default function Onboarding({ onDone }: { onDone: () => void }) {
+export default function Onboarding({ onDone, welcomeBack = false }: { onDone: () => void; welcomeBack?: boolean }) {
   const [name, setName] = useState("");
   const [time, setTime] = useState("21:30");
   const [provider, setProvider] = useState<string>("cloud");
   const [presetId, setPresetId] = useState(CLOUD_PRESETS[0].id);
   const [key, setKey] = useState("");
   const [saving, setSaving] = useState(false);
-  const [step, setStep] = useState<"intro" | "setup" | "questions">("intro");
+  const [step, setStep] = useState<"intro" | "setup" | "questions">(welcomeBack ? "setup" : "intro");
   const [answers, setAnswers] = useState<string[]>(() => QUESTIONS.map(() => ""));
-  const [restoreError, setRestoreError] = useState("");
+  const [style, setStyle] = useState<ConversationStyle>(DEFAULT_STYLE);
   const introScrollerRef = useRef<HTMLDivElement>(null);
   // The intro text waits until the clip has shrunk into its card.
   const [introSettled, setIntroSettled] = useState(false);
+  // Welcome back: what the restored journal already had, so the form starts
+  // filled in and an unchanged service keeps its own model settings.
+  const [restored, setRestored] = useState<{ provider: string; presetId: string } | null>(null);
 
   const preset = CLOUD_PRESETS.find((p) => p.id === presetId) ?? CLOUD_PRESETS[0];
+
+  useEffect(() => {
+    if (!welcomeBack) return;
+    getAllSettings().then((s) => {
+      const restoredPreset = presetForBaseUrl(s.cloud_api_base) ?? CLOUD_PRESETS[0];
+      setName(s.user_name);
+      setTime(s.reminder_time);
+      setProvider(s.provider === "anthropic" ? "anthropic" : "cloud");
+      setPresetId(restoredPreset.id);
+      setRestored({ provider: s.provider, presetId: restoredPreset.id });
+    });
+  }, [welcomeBack]);
+
+  /** Welcome back exit: the journal is already set up, so only what changed
+   *  is written, and there are no questions to ask. */
+  async function finishWelcomeBack(save: boolean) {
+    setSaving(true);
+    if (save) {
+      const sameService = restored?.provider === provider && (provider !== "cloud" || restored?.presetId === presetId);
+      await Promise.all([
+        setSetting("user_name", name.trim()),
+        setSetting("reminder_time", time),
+        setSetting("provider", provider),
+        ...(provider === "cloud"
+          ? [
+              setCloudApiKey(key.trim()),
+              ...(sameService
+                ? []
+                : [
+                    setSetting("cloud_api_base", preset.baseUrl),
+                    setSetting("model", preset.model),
+                    setSetting("cloud_max_tokens", String(preset.maxTokens)),
+                  ]),
+            ]
+          : [setApiKey(key.trim()), ...(sameService ? [] : [setSetting("model", "claude-sonnet-5")])]),
+      ]);
+    }
+    await claimJournal();
+    await ensureNotificationPermission();
+    onDone();
+  }
 
   /** Step 1 exit. "Set up later" skips everything; saving moves on to the
    * get-to-know-you questions instead of closing. */
   async function finish(save: boolean) {
+    if (welcomeBack) return finishWelcomeBack(save);
     setSaving(true);
     if (!save) {
       await setSetting("onboarded", "1");
@@ -239,6 +284,11 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
    * profile empty, exactly as before this step existed. */
   async function finishQuestions(save: boolean) {
     setSaving(true);
+    // The style picks count either way: they're preselected, not questions.
+    await Promise.all([
+      setSetting("conversation_tone", style.tone),
+      setSetting("conversation_approach", style.approach),
+    ]);
     if (save) {
       const summary = composeSeedProfile(
         name,
@@ -284,17 +334,10 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
           <button onClick={() => setStep("setup")} className="btn-primary mt-8">
             Get started
           </button>
-          <button
-            onClick={() => {
-              setRestoreError("");
-              restoreFromFile().catch((e) => setRestoreError(e instanceof Error ? e.message : String(e)));
-            }}
-            className="btn-ghost mt-2"
-          >
-            Used Ember before? Restore your backup
-          </button>
+          <div className="mt-2 flex flex-col text-center">
+            <RestoreBackup label="Used Ember before? Restore your backup" buttonClass="btn-ghost" />
+          </div>
           <p className="hint text-center">If your phone backed Ember up, your journal is already back and this screen won&rsquo;t show.</p>
-          {restoreError && <p className="mt-2 text-center text-[13.5px] text-danger">{restoreError}</p>}
           </div>
         </div>
       </div>
@@ -311,11 +354,24 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             Help Ember get to know you{name.trim() ? `, ${name.trim()}` : ""}
           </h1>
           <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
+            How should Ember talk with you in the evenings? You can change this later in Settings.
+          </p>
+
+          <div className="mt-6">
+            <StylePicker
+              tone={style.tone}
+              approach={style.approach}
+              onTone={(tone) => setStyle((s) => ({ ...s, tone }))}
+              onApproach={(approach) => setStyle((s) => ({ ...s, approach }))}
+            />
+          </div>
+
+          <p className="mt-8 border-t border-rule pt-6 text-[13.5px] leading-relaxed text-ink-soft">
             A few personal questions, all optional. Your answers shape how Ember talks with you from the first
             conversation, and they&rsquo;re stored on this phone.
           </p>
 
-          <div className="mt-7 flex flex-col gap-5 border-t border-rule pt-6">
+          <div className="mt-5 flex flex-col gap-5">
             {QUESTIONS.map((q, i) => (
               <label key={q.label} className="flex flex-col gap-1.5">
                 <span className="font-serif text-[16px] text-ink">{q.prompt}</span>
@@ -347,23 +403,37 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-paper">
       <div className="page mx-auto flex min-h-full max-w-[580px] flex-col justify-center px-6 py-10">
-        <Wordmark size="large" />
-        <p className="mt-3 font-serif text-[20px] italic text-ink-soft">A journal that writes itself.</p>
+        {welcomeBack ? (
+          <>
+            <Wordmark size="medium" />
+            <h1 className="mt-6 font-serif text-[28px] leading-tight tracking-[-0.015em] text-ink">
+              Welcome back{name.trim() ? `, ${name.trim()}` : ""}
+            </h1>
+            <p className="mt-2 border-b border-rule pb-5 text-[15px] leading-relaxed text-ink-soft">
+              Your journal is back. Backups don&rsquo;t keep API keys, so paste yours again to pick up where you left off.
+            </p>
+          </>
+        ) : (
+          <>
+            <Wordmark size="large" />
+            <p className="mt-3 font-serif text-[20px] italic text-ink-soft">A journal that writes itself.</p>
 
-        <ol className="mt-7 flex flex-col gap-3 border-y border-rule py-5 text-[15px] leading-relaxed text-ink-soft">
-          <li className="flex gap-4">
-            <span className="w-3 font-serif text-[18px] italic text-ember">1</span>
-            <span>During the day, tap + Note and jot down what happened. Five seconds.</span>
-          </li>
-          <li className="flex gap-4">
-            <span className="w-3 font-serif text-[18px] italic text-ember">2</span>
-            <span>In the evening, Ember starts a short conversation about your day. You just answer.</span>
-          </li>
-          <li className="flex gap-4">
-            <span className="w-3 font-serif text-[18px] italic text-ember">3</span>
-            <span>Ember writes the journal entry by hand on the paper you pick, and learns your patterns over time.</span>
-          </li>
-        </ol>
+            <ol className="mt-7 flex flex-col gap-3 border-y border-rule py-5 text-[15px] leading-relaxed text-ink-soft">
+              <li className="flex gap-4">
+                <span className="w-3 font-serif text-[18px] italic text-ember">1</span>
+                <span>During the day, tap + Note and jot down what happened. Five seconds.</span>
+              </li>
+              <li className="flex gap-4">
+                <span className="w-3 font-serif text-[18px] italic text-ember">2</span>
+                <span>In the evening, Ember starts a short conversation about your day. You just answer.</span>
+              </li>
+              <li className="flex gap-4">
+                <span className="w-3 font-serif text-[18px] italic text-ember">3</span>
+                <span>Ember writes the journal entry by hand on the paper you pick, and learns your patterns over time.</span>
+              </li>
+            </ol>
+          </>
+        )}
 
         <div className="mt-7 flex flex-col gap-5">
           <div className="grid grid-cols-[1fr_auto] gap-3">
@@ -404,7 +474,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                   ))}
                 </select>
                 <span className="hint">
-                  Get a free key at <span className="break-all text-ink-soft">{preset.keysUrl}</span>.
+                  Get a free key at <KeyLink url={preset.keysUrl} />.
                 </span>
               </label>
             )}
@@ -420,6 +490,11 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                 placeholder={provider === "cloud" ? "Paste your key" : "sk-ant-..."}
               />
               <span className="hint">
+                {provider === "anthropic" && (
+                  <>
+                    Get a key at <KeyLink url={ANTHROPIC_KEYS_URL} />.{" "}
+                  </>
+                )}
                 Stays in Ember&rsquo;s private storage on this phone. You can also add it later in Settings.
               </span>
             </label>
@@ -428,10 +503,10 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
 
         <div className="mt-8 flex flex-col items-stretch gap-2">
           <button onClick={() => finish(true)} disabled={saving} className="btn-primary">
-            {saving ? "Saving…" : "Start journaling"}
+            {saving ? "Saving…" : welcomeBack ? "Continue" : "Start journaling"}
           </button>
           <button onClick={() => finish(false)} disabled={saving} className="btn-ghost">
-            Set up later
+            {welcomeBack ? "Add the key later" : "Set up later"}
           </button>
         </div>
 

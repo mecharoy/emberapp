@@ -11,7 +11,8 @@ import { latestWeeklyReview } from "../db/reviews";
 import { listEntries } from "../db/entries";
 import { listMemorySummaries } from "../db/memorySummaries";
 import { formatJournalsSince, formatSummaryForPrompt } from "./fortnightly";
-import { formatCheckInForPrompt, toCheckInSummary } from "./checkin";
+import { formatCheckInForPrompt, formatDayParts, toCheckInSummary } from "./checkin";
+import { parseStyle } from "./prompts/style";
 import type { WeeklyReview } from "../db/types";
 import {
   counselorSystemPrompt,
@@ -99,6 +100,8 @@ export async function buildCounselorSystemPrompt(dayKey: string = localDateKey()
   const realToday = localDateKey();
   const [
     userNameSetting,
+    toneSetting,
+    approachSetting,
     pendingCaptures,
     profile,
     topObservations,
@@ -113,6 +116,8 @@ export async function buildCounselorSystemPrompt(dayKey: string = localDateKey()
     summaries,
   ] = await Promise.all([
     getSetting("user_name"),
+    getSetting("conversation_tone"),
+    getSetting("conversation_approach"),
     listUnjournaledCaptures(today),
     getProfileSummary(),
     listTopObservations(today, 15),
@@ -135,6 +140,7 @@ export async function buildCounselorSystemPrompt(dayKey: string = localDateKey()
 
   const neglected = computeNeglectedDomains(recentMetrics);
   const openThreads = selectOpenThreads(allObservations, today);
+  const checkIn = toCheckInSummary(checkInRow);
 
   return counselorSystemPrompt({
     userName: userNameSetting.trim(),
@@ -142,7 +148,9 @@ export async function buildCounselorSystemPrompt(dayKey: string = localDateKey()
     profileSummary: profile?.trim() || EMPTY_PROFILE_SUMMARY,
     memorySummary: latestSummary ? formatSummaryForPrompt(latestSummary) : EMPTY_MEMORY_SUMMARY,
     recentJournals: formatJournalsSince(entries, summariesBefore, today),
-    checkIn: formatCheckInForPrompt(toCheckInSummary(checkInRow)),
+    checkIn: formatCheckInForPrompt(checkIn),
+    dayParts: formatDayParts(checkIn, { lookingBack: today < realToday }),
+    style: parseStyle(toneSetting, approachSetting),
     // The week's letter opens a real evening, not a look back at an old one.
     weeklyLetter: today === realToday ? letterForTonight(latestReview, lastEntryDate, today) : "(none)",
     topObservations: formatTopObservations(topObservations),

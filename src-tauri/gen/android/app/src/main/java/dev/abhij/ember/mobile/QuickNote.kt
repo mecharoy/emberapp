@@ -5,6 +5,8 @@ import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -23,6 +25,7 @@ import android.webkit.JavascriptInterface
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.RemoteViews
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -35,8 +38,8 @@ import java.util.TimeZone
 
 /**
  * Quick notes from outside the app: a note field in the notification drawer
- * (inline reply on a quiet, always-there notification) and a Quick Settings
- * tile that opens a small note dialog. Both write straight into the same
+ * (inline reply on a quiet, always-there notification), and a Quick Settings
+ * tile and a home-screen widget that open a small note dialog. All write straight into the same
  * `captures` table the in-app "+ Note" sheet uses, so the note is on the
  * Today tab next time Ember opens. Note text is never shown in a notification.
  */
@@ -188,7 +191,20 @@ class QuickNoteTileService : TileService() {
   }
 }
 
-/** A small paper-coloured note dialog, for the tile. */
+/** Home-screen note bar. Widgets can't hold a text field, so a tap opens the
+ *  same note dialog as the tile. It shows nothing that changes. */
+class QuickNoteWidget : AppWidgetProvider() {
+  override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+    val intent = Intent(context, QuickNoteActivity::class.java)
+      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    val pending = PendingIntent.getActivity(context, 5, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+    val views = RemoteViews(context.packageName, R.layout.widget_quick_note)
+    views.setOnClickPendingIntent(R.id.widget_root, pending)
+    manager.updateAppWidget(ids, views)
+  }
+}
+
+/** A small paper-coloured note dialog, for the tile and the widget. */
 class QuickNoteActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -253,7 +269,7 @@ class QuickNoteActivity : Activity() {
 }
 
 /** window.EmberAndroid in the webview: the drawer note switch and backup copies. */
-class EmberBridge(private val context: Context) {
+class EmberBridge(private val context: Context, private val onPickBackup: () -> Unit) {
   @JavascriptInterface
   fun isQuickNoteEnabled(): Boolean = QuickNotes.isEnabled(context)
 
@@ -275,4 +291,9 @@ class EmberBridge(private val context: Context) {
 
   @JavascriptInterface
   fun restartApp() = Backups.restart(context)
+
+  /** Opens the file picker in Documents/Ember. The answer comes back through
+   *  window.__emberBackupPicked: "" when copied aside, "cancel", or the problem. */
+  @JavascriptInterface
+  fun pickBackup() = onPickBackup()
 }

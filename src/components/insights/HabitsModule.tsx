@@ -105,6 +105,7 @@ export default function HabitsModule({
   habitObservations,
   habitPrefs,
   onPin,
+  onPinDiscovered,
   onDismiss,
   onDirection,
 }: {
@@ -114,6 +115,7 @@ export default function HabitsModule({
   habitObservations: Observation[]; // kind='habit'
   habitPrefs: HabitPref[];
   onPin: (obs: Observation, pinned: boolean) => void;
+  onPinDiscovered: (key: string) => void;
   onDismiss: (key: string, dismissed: boolean) => void;
   onDirection: (key: string, direction: "less" | null) => void;
 }) {
@@ -232,14 +234,12 @@ export default function HabitsModule({
           <p className="hint mb-2">Spotted in your entries. Pin it, or &times; if it isn&rsquo;t a habit.</p>
           <ul className="flex flex-wrap gap-1.5">
             {visibleDiscovered.map((h) => {
-              const obs = habitObservations.find((o) => canon(o.key) === canon(h.key));
               return (
                 <li key={h.key} className="flex items-center overflow-hidden rounded-full border border-rule text-[12.5px]">
                   <button
-                    disabled={!obs}
-                    onClick={() => obs && onPin(obs, true)}
-                    className="py-1 pl-3 pr-1.5 text-ink-soft transition-colors hover:text-ember disabled:opacity-40"
-                    title={obs ? "Pin this habit" : "Not ready to pin yet"}
+                    onClick={() => onPinDiscovered(h.key)}
+                    className="py-1 pl-3 pr-1.5 text-ink-soft transition-colors hover:text-ember"
+                    title="Pin this habit"
                   >
                     + {h.key} <span className="tabular-nums text-ink-faint">{h.count}&times;</span>
                   </button>

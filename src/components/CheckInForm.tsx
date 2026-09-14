@@ -54,6 +54,50 @@ function ScaleRow({
   );
 }
 
+/** One point in the day: a time, or "not yet" / "skipped". Picking one clears
+ *  the other; tapping the active choice again clears it. */
+function DayPointRow({
+  label,
+  value,
+  allowNotYet,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  allowNotYet: boolean;
+  onChange: (v: string) => void;
+}) {
+  const choice = (id: "not-yet" | "skipped", text: string) => (
+    <button
+      type="button"
+      onClick={() => onChange(value === id ? "" : id)}
+      aria-pressed={value === id}
+      className={`min-h-[36px] rounded-full border px-3 py-1 text-[13px] transition-colors duration-200 ${
+        value === id ? "border-ember bg-ember text-paper" : "border-rule text-ink-soft"
+      }`}
+    >
+      {text}
+    </button>
+  );
+  const isTime = /^\d{2}:\d{2}$/.test(value);
+  return (
+    <div className="flex flex-col gap-1 text-[12px] text-ink-faint">
+      <span>{label}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="time"
+          aria-label={`${label} time`}
+          className="input w-[9.5rem]"
+          value={isTime ? value : ""}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {allowNotYet && choice("not-yet", "not yet")}
+        {choice("skipped", "skipped")}
+      </div>
+    </div>
+  );
+}
+
 /**
  * The evening check-in: the plain daily questions — how you
  * feel, energy, sleep, pinned habits — answered in ten seconds before the
@@ -84,6 +128,9 @@ export default function CheckInForm({
   const [wakeTime, setWakeTime] = useState("");
   const [latency, setLatency] = useState("");
   const [quality, setQuality] = useState<number | null>(null);
+  const [lunch, setLunch] = useState("");
+  const [eveningBreak, setEveningBreak] = useState("");
+  const [dinner, setDinner] = useState("");
   // Questionnaires due today, and the ones being answered right now.
   const [due, setDue] = useState<Instrument[]>([]);
   const [answering, setAnswering] = useState<Instrument[] | null>(null);
@@ -118,6 +165,9 @@ export default function CheckInForm({
         setWakeTime(s.wakeTime ?? "");
         setLatency(s.sleepLatencyMin === null ? "" : String(s.sleepLatencyMin));
         setQuality(s.sleepQuality);
+        setLunch(s.lunch ?? "");
+        setEveningBreak(s.eveningBreak ?? "");
+        setDinner(s.dinner ?? "");
       }
       setLoaded(true);
     })();
@@ -148,6 +198,9 @@ export default function CheckInForm({
       wakeTime: wakeTime || null,
       sleepLatencyMin: Number.isFinite(minutes) && minutes >= 0 && minutes <= 600 ? minutes : null,
       sleepQuality: quality,
+      lunch: lunch || null,
+      eveningBreak: eveningBreak || null,
+      dinner: dinner || null,
     });
     onStart();
   }
@@ -214,6 +267,16 @@ export default function CheckInForm({
         onChange={setMood}
       />
       <ScaleRow label="Energy" ends={["drained", "buzzing"]} value={energy} onChange={setEnergy} />
+
+      <div className="flex flex-col gap-2.5">
+        <div>
+          <span className="label">{isToday ? "Your day so far" : `Your ${weekday}`}</span>
+          <p className="hint mt-0.5">Ember walks through the day in the stretches between these.</p>
+        </div>
+        <DayPointRow label="Lunch" value={lunch} allowNotYet={isToday} onChange={setLunch} />
+        <DayPointRow label="Evening break" value={eveningBreak} allowNotYet={isToday} onChange={setEveningBreak} />
+        <DayPointRow label="Dinner" value={dinner} allowNotYet={isToday} onChange={setDinner} />
+      </div>
 
       <label className="flex max-w-xs flex-col gap-1.5">
         <span className="label">{isToday ? "Hours slept last night" : "Hours slept the night before"}</span>

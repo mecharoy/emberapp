@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { feelingWords, formatCheckInForPrompt, toCheckInSummary } from "./checkin";
+import { feelingWords, formatCheckInForPrompt, formatDayParts, toCheckInSummary } from "./checkin";
 import type { CheckIn } from "../db/types";
 
 const row: CheckIn = {
@@ -16,6 +16,9 @@ const row: CheckIn = {
   wake_time: null,
   sleep_latency_min: null,
   sleep_quality: null,
+  lunch: null,
+  evening_break: null,
+  dinner: null,
 };
 
 describe("toCheckInSummary", () => {
@@ -31,7 +34,21 @@ describe("toCheckInSummary", () => {
       wakeTime: null,
       sleepLatencyMin: null,
       sleepQuality: null,
+      lunch: null,
+      eveningBreak: null,
+      dinner: null,
     });
+  });
+
+  it("reads lunch, evening break and dinner, and ignores anything else stored there", () => {
+    const s = toCheckInSummary({ ...row, lunch: "13:05", evening_break: "skipped", dinner: "not-yet" });
+    expect([s?.lunch, s?.eveningBreak, s?.dinner]).toEqual(["13:05", "skipped", "not-yet"]);
+    expect(toCheckInSummary({ ...row, lunch: "around one" })?.lunch).toBeNull();
+  });
+
+  it("counts meal times alone as a check-in", () => {
+    const blank = { ...row, mood: null, energy: null, sleep_hours: null, feeling: null, on_mind: null, habits: "{}" };
+    expect(toCheckInSummary({ ...blank, dinner: "skipped" })?.dinner).toBe("skipped");
   });
 
   it("counts a sleep diary alone as a check-in", () => {
@@ -74,6 +91,65 @@ describe("formatCheckInForPrompt", () => {
     expect(text).toContain("- in bed 23:40, up 07:10");
     expect(text).toContain("- took 30 min to fall asleep");
     expect(text).toContain("- sleep quality: 2/5");
+  });
+
+  it("adds the day's meal points", () => {
+    const text = formatCheckInForPrompt(toCheckInSummary({ ...row, lunch: "skipped", evening_break: "18:30", dinner: "not-yet" }));
+    expect(text).toContain("- lunch: skipped\n- evening break: 18:30\n- dinner: not yet");
+  });
+});
+
+describe("formatDayParts", () => {
+  const withTimes = (over: Partial<CheckIn>) => toCheckInSummary({ ...row, wake_time: "07:10", ...over });
+
+  it("splits a full day into four parts", () => {
+    expect(formatDayParts(withTimes({ lunch: "13:00", evening_break: "18:30", dinner: "20:45" }))).toBe(
+      [
+        "1. waking up (07:10) → lunch (13:00)",
+        "2. lunch (13:00) → evening break (18:30)",
+        "3. evening break (18:30) → dinner (20:45)",
+        "4. dinner (20:45) → now",
+      ].join("\n"),
+    );
+  });
+
+  it("merges the parts around a skipped meal", () => {
+    expect(formatDayParts(withTimes({ lunch: "skipped", evening_break: "18:30", dinner: "20:45" }))).toBe(
+      [
+        "1. waking up (07:10) → evening break (18:30) — no lunch today",
+        "2. evening break (18:30) → dinner (20:45)",
+        "3. dinner (20:45) → now",
+      ].join("\n"),
+    );
+    expect(formatDayParts(withTimes({ lunch: "13:00", evening_break: "18:30", dinner: "skipped" }))).toBe(
+      [
+        "1. waking up (07:10) → lunch (13:00)",
+        "2. lunch (13:00) → evening break (18:30)",
+        "3. evening break (18:30) → now — no dinner today",
+      ].join("\n"),
+    );
+  });
+
+  it("ends the day at now when a point hasn't happened yet", () => {
+    expect(formatDayParts(withTimes({ lunch: "13:00", evening_break: "18:30", dinner: "not-yet" }))).toBe(
+      ["1. waking up (07:10) → lunch (13:00)", "2. lunch (13:00) → evening break (18:30)", "3. evening break (18:30) → now — dinner not yet"].join(
+        "\n",
+      ),
+    );
+    expect(formatDayParts(withTimes({ lunch: "skipped", evening_break: "not-yet" }))).toBe(
+      "1. waking up (07:10) → now — no lunch today, evening break not yet",
+    );
+  });
+
+  it("still splits the day without a check-in, and says when an earlier day ends", () => {
+    expect(formatDayParts(null, { lookingBack: true })).toBe(
+      [
+        "1. waking up → lunch (time not given)",
+        "2. lunch (time not given) → evening break (time not given)",
+        "3. evening break (time not given) → dinner (time not given)",
+        "4. dinner (time not given) → the end of the day",
+      ].join("\n"),
+    );
   });
 });
 

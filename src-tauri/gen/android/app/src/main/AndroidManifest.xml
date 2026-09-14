@@ -31,7 +31,13 @@
             </intent-filter>
         </activity>
 
-        <!-- Quick notes from the notification drawer and a Quick Settings tile (QuickNote.kt). -->
+        <!-- Quick notes from the notification drawer, a Quick Settings tile and a home-screen widget (QuickNote.kt). -->
+        <receiver android:name=".QuickNoteWidget" android:exported="false" android:label="Ember note">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_quick_note_info" />
+        </receiver>
         <receiver android:name=".QuickNoteReceiver" android:exported="false" />
         <receiver android:name=".QuickNoteBootReceiver" android:exported="false">
             <intent-filter>

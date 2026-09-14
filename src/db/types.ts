@@ -108,6 +108,10 @@ export interface CheckIn {
   wake_time: string | null; // "HH:MM"
   sleep_latency_min: number | null;
   sleep_quality: number | null; // 1..5
+  // where the day splits into parts (migration 0010): "HH:MM" | "not-yet" | "skipped"
+  lunch: string | null;
+  evening_break: string | null;
+  dinner: string | null;
 }
 
 export type Instrument = "who5" | "phq9" | "gad7";
@@ -161,6 +165,8 @@ export type SettingKey =
   | "voice"
   | "user_name"
   | "chat_length_preference"
+  | "conversation_tone" // gentle | balanced | blunt (ai/prompts/style.ts)
+  | "conversation_approach" // friend | coach | therapist
   | "theme"
   | "onboarded" // "1" once first-run onboarding completed
   | "reminder_snoozed_until" // ISO local timestamp, empty when not snoozed
@@ -176,4 +182,5 @@ export type SettingKey =
   | "journal_paper" // default paper for journal entries (components/paper.ts id)
   | "backup_copy" // "1" = keep a daily copy in Documents/Ember
   | "backup_last_at" // ISO timestamp of the last copy written
+  | "install_id" // random id of the install this journal belongs to; see src/install.ts
   | "jobs_last_error"; // what the last background review run couldn't write, "" if nothing

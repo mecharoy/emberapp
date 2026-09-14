@@ -8,6 +8,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import org.json.JSONObject
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,9 +36,32 @@ class MainActivity : TauriActivity() {
     }
   }
 
+  private var webView: WebView? = null
+
+  // Restoring a backup: the picker's answer is copied aside off the main
+  // thread, then handed to the page.
+  private val backupPicker = registerForActivityResult(OpenBackupFile()) { uri ->
+    if (uri == null) {
+      replyBackupPicked("cancel")
+    } else {
+      Thread {
+        val problem = Backups.stage(applicationContext, uri)
+        runOnUiThread { replyBackupPicked(problem) }
+      }.start()
+    }
+  }
+
+  private fun replyBackupPicked(result: String) {
+    webView?.evaluateJavascript("window.__emberBackupPicked && window.__emberBackupPicked(${JSONObject.quote(result)})", null)
+  }
+
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
-    webView.addJavascriptInterface(EmberBridge(applicationContext), "EmberAndroid")
+    this.webView = webView
+    webView.addJavascriptInterface(
+      EmberBridge(applicationContext) { runOnUiThread { backupPicker.launch(arrayOf("*/*")) } },
+      "EmberAndroid",
+    )
   }
 
   override fun onResume() {

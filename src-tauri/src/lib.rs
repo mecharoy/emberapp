@@ -61,6 +61,12 @@ fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0009_entry_paper.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 10,
+            description: "lunch, evening break and dinner in the check-in",
+            sql: include_str!("../migrations/0010_checkin_day_times.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -74,7 +80,9 @@ fn migrations() -> Vec<Migration> {
 
 /// Only whitelisted names — the webview can't use this as a general file store.
 fn secret_path(app: &tauri::AppHandle, name: &str) -> Result<PathBuf, String> {
-    if !matches!(name, "anthropic_api_key" | "cloud_api_key") {
+    // install_id isn't secret, but it must stay out of backups like the keys:
+    // it tells this install apart from the one a restored journal came from.
+    if !matches!(name, "anthropic_api_key" | "cloud_api_key" | "install_id") {
         return Err(format!("Unknown secret name: {name}"));
     }
     let dir = app
@@ -117,29 +125,51 @@ fn secret_set(app: tauri::AppHandle, name: String, value: String) -> Result<(), 
 }
 
 // ---------- Restoring a backup ----------
+//
+// A picked backup is first copied next to ember.db as STAGED_BACKUP (by
+// backup_stage here, or by Backup.kt on Android), so the webview can show
+// what's in it before anything is replaced.
 
-/// Puts a backup in place of ember.db. The webview closes its connection
-/// first and restarts the app afterwards, so migrations run on the restored
-/// file. The replaced files are kept next to it as *.before-restore.
-#[tauri::command]
-fn backup_restore(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<(), String> {
-    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
-        return Err("Expected the backup file's bytes.".into());
-    };
+const STAGED_BACKUP: &str = "ember-restore-candidate.db";
+
+/// tauri-plugin-sql opens sqlite:ember.db in the app config dir.
+fn db_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map_err(|e| format!("Could not find the app's data folder: {e}"))
+}
+
+fn check_backup(bytes: &[u8]) -> Result<(), String> {
     if !bytes.starts_with(b"SQLite format 3\x00") {
         return Err("That file isn't an Ember backup.".into());
     }
     if !bytes.windows(20).any(|w| w == b"CREATE TABLE entries") {
         return Err("That database has no journal in it.".into());
     }
-    // tauri-plugin-sql opens sqlite:ember.db in the app config dir.
-    let dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| format!("Could not find the app's data folder: {e}"))?;
+    Ok(())
+}
+
+/// Copies a picked backup's bytes aside, without touching ember.db.
+#[tauri::command]
+fn backup_stage(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Expected the backup file's bytes.".into());
+    };
+    check_backup(bytes)?;
+    let dir = db_dir(&app)?;
+    std::fs::write(dir.join(STAGED_BACKUP), bytes).map_err(|e| format!("Could not copy the backup: {e}"))
+}
+
+/// Puts the staged backup in place of ember.db. The webview closes its
+/// connections first and restarts the app afterwards, so migrations run on
+/// the restored file. The replaced files are kept next to it as *.before-restore.
+#[tauri::command]
+fn backup_restore(app: tauri::AppHandle) -> Result<(), String> {
+    let dir = db_dir(&app)?;
     let db = dir.join("ember.db");
-    let incoming = dir.join("ember.db.restoring");
-    std::fs::write(&incoming, bytes).map_err(|e| format!("Could not write the backup: {e}"))?;
+    let incoming = dir.join(STAGED_BACKUP);
+    let bytes = std::fs::read(&incoming).map_err(|e| format!("Could not read the picked backup: {e}"))?;
+    check_backup(&bytes)?;
     for suffix in ["", "-wal", "-shm"] {
         let file = dir.join(format!("ember.db{suffix}"));
         if file.exists() {
@@ -164,7 +194,7 @@ pub fn run() {
                 .add_migrations("sqlite:ember.db", migrations())
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![secret_get, secret_set, backup_restore])
+        .invoke_handler(tauri::generate_handler![secret_get, secret_set, backup_stage, backup_restore])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

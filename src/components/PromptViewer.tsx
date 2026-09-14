@@ -1,47 +1,57 @@
-import { useEffect, useState } from "react";
-import { buildCounselorSystemPrompt } from "../ai/context";
-import { JOURNAL_SYSTEM_PROMPT } from "../ai/prompts/journal";
-import { EXTRACTOR_SYSTEM_PROMPT } from "../ai/prompts/extractor";
-import { REVIEW_SYSTEM_PROMPT } from "../ai/prompts/review";
-import { MONTHLY_SYSTEM_PROMPT } from "../ai/prompts/monthly";
-import { FORTNIGHT_SYSTEM_PROMPT } from "../ai/prompts/fortnightly";
+import { useState } from "react";
+import { APPROACHES, TONES, type ConversationStyle } from "../ai/prompts/style";
 
 const PROMPTS = [
-  { id: "counselor", label: "Conversation", note: "Exactly what tonight's conversation starts from, including what Ember knows about you." },
-  { id: "journal", label: "Journal entry", note: "How Ember writes the entry from your notes and the conversation." },
-  { id: "extractor", label: "Insights", note: "How Ember reads an entry for mood, themes, habits and more." },
-  { id: "weekly", label: "Weekly letter", note: "The weekly review." },
-  { id: "monthly", label: "Monthly report", note: "The monthly report." },
-  { id: "memory", label: "Memory", note: "The two-weekly summary Ember remembers you by." },
+  { id: "counselor", label: "Conversation" },
+  { id: "journal", label: "Journal entry" },
+  { id: "extractor", label: "Insights" },
+  { id: "weekly", label: "Weekly letter" },
+  { id: "monthly", label: "Monthly report" },
+  { id: "memory", label: "Memory" },
 ] as const;
 
 type PromptId = (typeof PROMPTS)[number]["id"];
 
-const FIXED: Record<Exclude<PromptId, "counselor">, string> = {
-  journal: JOURNAL_SYSTEM_PROMPT,
-  extractor: EXTRACTOR_SYSTEM_PROMPT,
-  weekly: REVIEW_SYSTEM_PROMPT,
-  monthly: MONTHLY_SYSTEM_PROMPT,
-  memory: FORTNIGHT_SYSTEM_PROMPT,
+/** Plain-words summaries of what each prompt asks for. Kept next to the
+ *  prompts' meaning, not their wording: update them when a prompt's job changes. */
+const SUMMARIES: Record<Exclude<PromptId, "counselor">, string[]> = {
+  journal: [
+    "Turns your notes, check-in and conversation into the entry: the day in order, how it felt, what mattered, and a short note from Ember.",
+    "It only uses what you actually wrote or said. A short evening gets a short entry, never made-up detail.",
+  ],
+  extractor: [
+    "Reads each entry for mood, energy, sleep, themes, people, habits, feeling words and thinking traps, so Insights can chart them.",
+    "Your own check-in answers always win over its reading. Anything unclear is left blank rather than guessed.",
+  ],
+  weekly: [
+    "Once a week, writes you a short letter about the week: its main note, one concrete moment and a gentle look ahead.",
+    "Every strength or thing to watch has to point to real days, and it updates the short portrait Ember keeps of you.",
+  ],
+  monthly: [
+    "When a month ends, writes a short month-in-review: the main theme, the best week and what changed.",
+    "It also sums up what made things hard, what kept them going and what helped, using only what you told Ember.",
+  ],
+  memory: [
+    "Every two weeks, folds your newest entries into a running summary, which is how Ember remembers older days.",
+    "It keeps what still matters and drops what's over. No diagnoses, labels or made-up detail.",
+  ],
 };
 
-/** Settings → Ember's instructions: the system prompts, read-only. */
-export default function PromptViewer() {
+function conversationSummary(style: ConversationStyle): string[] {
+  const tone = TONES.find((t) => t.id === style.tone)!;
+  const approach = APPROACHES.find((a) => a.id === style.approach)!;
+  return [
+    "Walks you through the day in order: waking up to lunch, lunch to your evening break, then to dinner and to now, one stretch at a time, using your notes and check-in.",
+    "After that it goes deeper on the one thing that mattered most, asks about something good, and offers to write the entry.",
+    `Your style: ${tone.label.toLowerCase()} (${tone.blurb.toLowerCase().replace(/\.$/, "")}), ${approach.label.toLowerCase()} (${approach.blurb.charAt(0).toLowerCase()}${approach.blurb.slice(1).replace(/\.$/, "")}).`,
+    "It gives advice only when you ask, sets reminders only when you agree, and points you to real help if you're in crisis.",
+  ];
+}
+
+/** Settings → Ember's instructions: what each prompt asks for, in short. */
+export default function PromptViewer({ style }: { style: ConversationStyle }) {
   const [id, setId] = useState<PromptId>("counselor");
-  const [counselor, setCounselor] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (id !== "counselor" || counselor !== null) return;
-    buildCounselorSystemPrompt()
-      .then(setCounselor)
-      .catch(() => setCounselor("Couldn't put the conversation prompt together right now."));
-  }, [id, counselor]);
-
-  const raw = id === "counselor" ? (counselor ?? "Loading…") : FIXED[id];
-  // The prompts are wrapped at ~80 columns in code; rejoin those lines so the
-  // text flows on a narrow screen. Lists and headings keep their breaks.
-  const text = raw.replace(/([^\n:])\n(?=[a-z("'“])/g, "$1 ");
-  const current = PROMPTS.find((p) => p.id === id)!;
+  const lines = id === "counselor" ? conversationSummary(style) : SUMMARIES[id];
 
   return (
     <div className="flex flex-col gap-3">
@@ -52,10 +62,13 @@ export default function PromptViewer() {
           </button>
         ))}
       </div>
-      <p className="hint">{current.note}</p>
-      <pre className="selectable max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-rule bg-sheet p-3 font-mono text-[11.5px] leading-relaxed text-ink-soft">
-        {text}
-      </pre>
+      <ul className="flex flex-col gap-2 border-l-2 border-rule pl-4">
+        {lines.map((line) => (
+          <li key={line} className="text-[14px] leading-relaxed text-ink-soft">
+            {line}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

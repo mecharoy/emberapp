@@ -4,11 +4,14 @@ import android.app.Activity
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.Process
+import android.provider.DocumentsContract
 import android.provider.MediaStore
+import androidx.activity.result.contract.ActivityResultContracts
 import java.io.File
 
 /**
@@ -62,6 +65,28 @@ object Backups {
     }
   }
 
+  /** Where a picked backup waits, next to ember.db, until the person confirms.
+   *  Same name as STAGED_BACKUP in lib.rs. */
+  const val STAGED_NAME = "ember-restore-candidate.db"
+
+  /** Documents/Ember, as the file picker's starting folder. */
+  fun folderUri(): Uri =
+    DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:Documents/Ember")
+
+  /** Copies the picked file next to ember.db. Returns an empty string on
+   *  success, otherwise what went wrong. The webview checks what's inside. */
+  fun stage(context: Context, uri: Uri): String {
+    return try {
+      val target = File(context.dataDir, STAGED_NAME)
+      context.contentResolver.openInputStream(uri)?.use { input ->
+        target.outputStream().use { input.copyTo(it) }
+      } ?: return "Couldn't open that file."
+      ""
+    } catch (e: Exception) {
+      e.message ?: "Couldn't read that file."
+    }
+  }
+
   /** Closes Ember and opens it again, so a restored database goes through the
    *  migrations on a fresh start. */
   fun restart(context: Context) {
@@ -69,6 +94,17 @@ object Backups {
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       .putExtra(RestartActivity.EXTRA_PID, Process.myPid())
     context.startActivity(intent)
+  }
+}
+
+/** The system "open a file" picker, starting in Documents/Ember when it exists. */
+class OpenBackupFile : ActivityResultContracts.OpenDocument() {
+  override fun createIntent(context: Context, input: Array<String>): Intent {
+    val intent = super.createIntent(context, input)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Backups.folderUri())
+    }
+    return intent
   }
 }
 

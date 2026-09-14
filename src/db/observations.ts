@@ -51,6 +51,22 @@ export async function listTopObservations(todayKey: string, limit = 15): Promise
     .slice(0, limit);
 }
 
+/** Pins a habit spotted in the entries. The observations table is only
+ *  rebuilt after an extraction, so when it hasn't caught up with the day
+ *  metrics yet, it is rebuilt first. */
+export async function pinHabit(key: string): Promise<void> {
+  const db = await getDb();
+  const find = async () =>
+    (await listObservations("habit")).find((o) => canonicalKey(o.key) === canonicalKey(key));
+  let obs = await find();
+  if (!obs) {
+    await rebuildObservations();
+    obs = await find();
+  }
+  if (!obs) throw new Error(`No habit called "${key}" in your entries.`);
+  await db.execute("UPDATE observations SET pinned = 1 WHERE id = $1", [obs.id]);
+}
+
 /** User promotes/demotes a discovered habit to a tracked one. */
 export async function setObservationPinned(id: number, pinned: boolean): Promise<void> {
   const db = await getDb();

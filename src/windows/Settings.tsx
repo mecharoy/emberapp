@@ -3,19 +3,23 @@ import { getAllSettings, setSetting } from "../db/settings";
 import type { SettingKey } from "../db/types";
 import { exportEverything, deleteEverything } from "../db/exporter";
 import { getApiKey, setApiKey, getCloudApiKey, setCloudApiKey } from "../secrets";
-import { createAnthropicProvider } from "../ai/providers/anthropic";
+import { ANTHROPIC_KEYS_URL, createAnthropicProvider } from "../ai/providers/anthropic";
 import { CLOUD_PRESETS, createCloudProvider } from "../ai/providers/cloud";
 import { ProviderError } from "../ai/types";
 import DocumentsManager from "../components/DocumentsManager";
 import type { Instrument } from "../db/types";
 import UpdatesAndFeedback from "../components/UpdatesAndFeedback";
 import PromptViewer from "../components/PromptViewer";
+import StylePicker from "../components/StylePicker";
+import { parseStyle } from "../ai/prompts/style";
+import KeyLink from "../components/KeyLink";
 import { PaperPicker } from "../components/EntryFields";
 import { paperById } from "../components/paper";
 import { INSTRUMENT_ORDER, INSTRUMENTS, parseEnabledInstruments } from "../insights/assessments";
 import { androidBridge } from "../androidBridge";
 import { ensureNotificationPermission } from "../scheduler";
-import { backupCopySupported, backupNow, restoreFromFile } from "../backup";
+import { backupCopySupported, backupNow } from "../backup";
+import RestoreBackup from "../components/RestoreBackup";
 
 type FormState = Record<SettingKey, string>;
 
@@ -49,7 +53,6 @@ export default function Settings() {
   const [backupState, setBackupState] = useState<
     { status: "idle" } | { status: "working" } | { status: "done" } | { status: "error"; message: string }
   >({ status: "idle" });
-  const [confirmRestore, setConfirmRestore] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [showDelete, setShowDelete] = useState(false);
   // The note field in the notification drawer; lives on the Android side and
@@ -103,6 +106,8 @@ export default function Settings() {
     "reminder_time",
     "voice",
     "chat_length_preference",
+    "conversation_tone",
+    "conversation_approach",
     "journal_paper",
     "provider",
     "model",
@@ -162,15 +167,6 @@ export default function Settings() {
     }
   }
 
-  async function handleRestore() {
-    setConfirmRestore(false);
-    try {
-      await restoreFromFile();
-    } catch (e) {
-      setBackupState({ status: "error", message: e instanceof Error ? e.message : String(e) });
-    }
-  }
-
   async function handleDeleteEverything() {
     if (deleteConfirm !== "delete") return;
     await deleteEverything();
@@ -219,6 +215,7 @@ export default function Settings() {
   }
 
   const hiddenSet = new Set(form.hidden_modules.split(",").map((s) => s.trim()).filter(Boolean));
+  const style = parseStyle(form.conversation_tone, form.conversation_approach);
   const selectedPreset = CLOUD_PRESETS.find((p) => p.baseUrl === form.cloud_api_base);
   const testButton = (disabled: boolean) => (
     <div className="flex flex-col gap-2">
@@ -280,7 +277,7 @@ export default function Settings() {
               </select>
               {selectedPreset && (
                 <span className="hint">
-                  {selectedPreset.note} Get a key at <span className="break-all text-ink-soft">{selectedPreset.keysUrl}</span>.
+                  {selectedPreset.note} Get a key at <KeyLink url={selectedPreset.keysUrl} />.
                 </span>
               )}
             </Field>
@@ -368,7 +365,7 @@ export default function Settings() {
                 placeholder="sk-ant-..."
               />
               <span className="hint">
-                From console.anthropic.com. Kept in Ember&rsquo;s private storage on this phone, never in the journal
+                Get a key at <KeyLink url={ANTHROPIC_KEYS_URL} />. Kept in Ember&rsquo;s private storage on this phone, never in the journal
                 database.
               </span>
             </Field>
@@ -401,16 +398,6 @@ export default function Settings() {
             <option value="second">Second person (&ldquo;You had a rough day...&rdquo;)</option>
           </select>
         </Field>
-        <Field label="Evening conversation length">
-          <select
-            className="input"
-            value={form.chat_length_preference === "quick" ? "quick" : "standard"}
-            onChange={(e) => update("chat_length_preference", e.target.value)}
-          >
-            <option value="standard">Standard (about 8 to 10 exchanges)</option>
-            <option value="quick">Brief (3 or 4 exchanges)</option>
-          </select>
-        </Field>
         {drawerNote !== null && (
           <label className="flex items-center justify-between gap-4">
             <span className="label">
@@ -438,6 +425,25 @@ export default function Settings() {
           <PaperPicker value={paperById(form.journal_paper).id} onChange={(id) => update("journal_paper", id)} />
           <span className="hint">Any entry can have its own paper too: pick one above the page.</span>
         </div>
+      </Section>
+
+      <Section title="Evening conversation">
+        <Field label="Length">
+          <select
+            className="input"
+            value={form.chat_length_preference === "quick" ? "quick" : "standard"}
+            onChange={(e) => update("chat_length_preference", e.target.value)}
+          >
+            <option value="standard">Standard (about 8 to 10 exchanges)</option>
+            <option value="quick">Brief (3 or 4 exchanges)</option>
+          </select>
+        </Field>
+        <StylePicker
+          tone={style.tone}
+          approach={style.approach}
+          onTone={(v) => update("conversation_tone", v)}
+          onApproach={(v) => update("conversation_approach", v)}
+        />
       </Section>
 
       <Section title="Your documents" note="Changes here apply straight away, no need to save.">
@@ -485,8 +491,8 @@ export default function Settings() {
       </Section>
 
       <Section title="Ember's instructions">
-        <p className="hint">The instructions Ember works from, so you can see what it is asked to do with your words.</p>
-        <PromptViewer />
+        <p className="hint">What Ember is asked to do with your words, in short.</p>
+        <PromptViewer style={style} />
       </Section>
 
       <Section title="Updates & feedback">
@@ -532,28 +538,12 @@ export default function Settings() {
                 {backupState.status === "working" ? "Backing up…" : "Back up now"}
               </button>
             )}
-            {!confirmRestore && (
-              <button onClick={() => setConfirmRestore(true)} className="btn-subtle">
-                Restore a backup
-              </button>
-            )}
           </div>
-          {confirmRestore && (
-            <div className="fade-up flex flex-col gap-2 rounded-xl bg-ember-wash px-4 py-3">
-              <p className="text-[13.5px] leading-relaxed text-ink">
-                The backup replaces everything Ember has now, and Ember restarts. Pick &ldquo;Ember backup.db&rdquo;
-                from Documents/Ember.
-              </p>
-              <div className="flex items-center gap-2">
-                <button onClick={handleRestore} className="btn-primary">
-                  Pick the file
-                </button>
-                <button onClick={() => setConfirmRestore(false)} className="btn-ghost">
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+          <RestoreBackup
+            label="Restore a backup"
+            buttonClass="btn-subtle self-start"
+            warning="Restoring replaces everything Ember has now, and Ember restarts."
+          />
           {backupState.status === "done" && <p className="text-[13.5px] text-moss">Saved to Documents/Ember.</p>}
           {backupState.status === "error" && <p className="text-[13.5px] text-danger">{backupState.message}</p>}
         </div>

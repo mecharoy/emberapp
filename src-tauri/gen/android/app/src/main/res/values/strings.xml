@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">"Ember"</string>
     <string name="main_activity_title">"Ember"</string>
+    <string name="widget_prompt">"Jot something down…"</string>
+    <string name="widget_description">"Write a note without opening Ember"</string>
 </resources>

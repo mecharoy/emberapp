@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listCaptureTimesSince, localDateKey } from "../db/captures";
 import { computeStreak, listEntries } from "../db/entries";
 import { listAllDayMetrics } from "../db/metrics";
-import { listObservations, setObservationPinned } from "../db/observations";
+import { listObservations, pinHabit, setObservationPinned } from "../db/observations";
 import { listMonthlyReports, listWeeklyReviews } from "../db/reviews";
 import { listHabitPrefs, setHabitDirection, setHabitDismissed } from "../db/habitPrefs";
 import { getSetting } from "../db/settings";
@@ -206,6 +206,11 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
     refresh();
   }
 
+  async function handlePinDiscovered(key: string) {
+    await pinHabit(key).catch(() => {});
+    refresh();
+  }
+
   async function handleDismiss(key: string, isDismissed: boolean) {
     await setHabitDismissed(key, isDismissed);
     refresh();
@@ -353,6 +358,7 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
           habitObservations={data.habitObservations}
           habitPrefs={data.habitPrefs}
           onPin={handlePin}
+          onPinDiscovered={handlePinDiscovered}
           onDismiss={handleDismiss}
           onDirection={handleDirection}
         />

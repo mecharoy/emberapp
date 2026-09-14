@@ -3,7 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { androidBridge } from "./androidBridge";
 import { closeDb } from "./db/client";
-import { hasJournalData, snapshotDatabase } from "./db/backup";
+import { hasJournalData, readStagedBackup, snapshotDatabase, type BackupSummary } from "./db/backup";
 import { getSetting, setSetting } from "./db/settings";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -38,17 +38,45 @@ export async function backupIfDue(): Promise<void> {
   }
 }
 
-/** Asks for a backup file, puts it in place of the current journal and
- *  restarts Ember. Returns false if nothing was picked; throws on a bad file. */
-export async function restoreFromFile(): Promise<boolean> {
-  const picked = await open({ multiple: false, directory: false, title: "Pick your Ember backup" });
-  if (!picked) return false;
-  const bytes = await readFile(picked);
-  const header = new TextDecoder().decode(bytes.slice(0, 15));
-  if (header !== "SQLite format 3") throw new Error("That file isn't an Ember backup. Look for \"Ember backup.db\" in Documents/Ember.");
+/** On Android the picker opens in Documents/Ember and MainActivity copies the
+ *  file aside, answering through window.__emberBackupPicked. */
+function pickOnAndroid(bridge: NonNullable<ReturnType<typeof androidBridge>>): Promise<string> {
+  const w = window as unknown as { __emberBackupPicked?: (result: string) => void };
+  return new Promise((resolve) => {
+    w.__emberBackupPicked = (result) => {
+      delete w.__emberBackupPicked;
+      resolve(result);
+    };
+    bridge.pickBackup();
+  });
+}
+
+/** Asks for a backup file, copies it aside and says what's in it. Nothing is
+ *  replaced yet. Returns null if nothing was picked; throws on a bad file. */
+export async function pickBackup(): Promise<BackupSummary | null> {
+  const bridge = androidBridge();
+  if (bridge) {
+    const result = await pickOnAndroid(bridge);
+    if (result === "cancel") return null;
+    if (result) throw new Error(result);
+  } else {
+    const picked = await open({ multiple: false, directory: false, title: "Pick your Ember backup" });
+    if (!picked) return null;
+    const bytes = await readFile(picked);
+    try {
+      await invoke("backup_stage", bytes);
+    } catch (e) {
+      throw new Error(String(e));
+    }
+  }
+  return readStagedBackup();
+}
+
+/** Puts the picked backup in place of the current journal and restarts Ember. */
+export async function restorePickedBackup(): Promise<void> {
   await closeDb();
   try {
-    await invoke("backup_restore", bytes);
+    await invoke("backup_restore");
   } catch (e) {
     // The old journal is still in place; reopen it.
     window.location.reload();
@@ -57,5 +85,4 @@ export async function restoreFromFile(): Promise<boolean> {
   const bridge = androidBridge();
   if (bridge) bridge.restartApp();
   else window.location.reload();
-  return true;
 }
