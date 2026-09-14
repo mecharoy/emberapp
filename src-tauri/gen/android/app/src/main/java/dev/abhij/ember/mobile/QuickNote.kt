@@ -252,7 +252,7 @@ class QuickNoteActivity : Activity() {
   }
 }
 
-/** window.EmberAndroid in the webview: lets Settings switch the drawer note. */
+/** window.EmberAndroid in the webview: the drawer note switch and backup copies. */
 class EmberBridge(private val context: Context) {
   @JavascriptInterface
   fun isQuickNoteEnabled(): Boolean = QuickNotes.isEnabled(context)
@@ -263,4 +263,16 @@ class EmberBridge(private val context: Context) {
   /** Called after notification permission is granted, so the note appears at once. */
   @JavascriptInterface
   fun refreshQuickNote() = QuickNotes.refresh(context)
+
+  @JavascriptInterface
+  fun backupCopySupported(): Boolean = Backups.supported()
+
+  @JavascriptInterface
+  fun backupSnapshotPath(): String = Backups.snapshotFile(context).absolutePath
+
+  @JavascriptInterface
+  fun saveBackupCopy(): String = Backups.saveCopy(context)
+
+  @JavascriptInterface
+  fun restartApp() = Backups.restart(context)
 }

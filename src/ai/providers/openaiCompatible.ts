@@ -103,7 +103,7 @@ async function callEndpoint(
           detail ? String(detail) : "",
           "This is on their side and usually passes within a minute. Press Retry",
           gemini
-            ? "or switch the model to a lighter one such as gemini-3.5-flash-lite in Settings > AI provider."
+            ? "or pick another service in Settings > AI provider."
             : "or switch model or service in Settings > AI provider.",
         ]
           .filter(Boolean)

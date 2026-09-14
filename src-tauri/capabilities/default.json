@@ -12,9 +12,12 @@
     "sql:allow-execute",
     "sql:allow-select",
     "sql:allow-load",
+    "sql:allow-close",
     "notification:default",
     "dialog:allow-save",
+    "dialog:allow-open",
     "fs:allow-write-text-file",
+    "fs:allow-read-file",
     {
       "identifier": "http:default",
       "allow": [

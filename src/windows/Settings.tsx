@@ -15,6 +15,7 @@ import { paperById } from "../components/paper";
 import { INSTRUMENT_ORDER, INSTRUMENTS, parseEnabledInstruments } from "../insights/assessments";
 import { androidBridge } from "../androidBridge";
 import { ensureNotificationPermission } from "../scheduler";
+import { backupCopySupported, backupNow, restoreFromFile } from "../backup";
 
 type FormState = Record<SettingKey, string>;
 
@@ -45,6 +46,10 @@ export default function Settings() {
   const [exportState, setExportState] = useState<
     { status: "idle" } | { status: "working" } | { status: "done"; names: string[] } | { status: "error"; message: string }
   >({ status: "idle" });
+  const [backupState, setBackupState] = useState<
+    { status: "idle" } | { status: "working" } | { status: "done" } | { status: "error"; message: string }
+  >({ status: "idle" });
+  const [confirmRestore, setConfirmRestore] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [showDelete, setShowDelete] = useState(false);
   // The note field in the notification drawer; lives on the Android side and
@@ -107,6 +112,7 @@ export default function Settings() {
     "assessments_enabled",
     "update_source",
     "update_auto_check",
+    "backup_copy",
   ];
 
   async function handleSave() {
@@ -143,6 +149,25 @@ export default function Settings() {
       setExportState(names.length > 0 ? { status: "done", names } : { status: "idle" });
     } catch (e) {
       setExportState({ status: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function handleBackupNow() {
+    setBackupState({ status: "working" });
+    try {
+      await backupNow();
+      setBackupState({ status: "done" });
+    } catch (e) {
+      setBackupState({ status: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function handleRestore() {
+    setConfirmRestore(false);
+    try {
+      await restoreFromFile();
+    } catch (e) {
+      setBackupState({ status: "error", message: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -475,11 +500,63 @@ export default function Settings() {
 
       <Section title="Your data">
         <p className="hint">
-          Everything lives in one database on this phone. No tracking, no accounts, no sync, and it isn&rsquo;t
-          included in the phone&rsquo;s cloud backup, so export now and then to keep a copy. Your words do go to the
+          Everything lives in one database on this phone. No tracking, no accounts, no sync. Your words do go to the
           AI provider you chose. Ember helps you reflect; it is not therapy. If you&rsquo;re ever in crisis, please
           reach out to someone you trust or to local emergency services.
         </p>
+        <div className="flex flex-col gap-2.5">
+          <p className="hint">
+            Your journal is part of the phone&rsquo;s own backup (your Google account), so it comes back if you install
+            Ember again. API keys are left out; you&rsquo;ll paste them again.
+          </p>
+          {backupCopySupported() && (
+            <label className="flex items-start gap-3 text-[14.5px] text-ink">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 accent-ember"
+                checked={form.backup_copy === "1"}
+                onChange={(e) => update("backup_copy", e.target.checked ? "1" : "")}
+              />
+              <span>
+                Keep a daily copy in Documents/Ember
+                <span className="hint block">
+                  It stays on the phone if Ember is removed. Other apps with access to your files can read it.
+                  {form.backup_last_at && ` Last copy: ${new Date(form.backup_last_at).toLocaleString()}.`}
+                </span>
+              </span>
+            </label>
+          )}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {backupCopySupported() && (
+              <button onClick={handleBackupNow} disabled={backupState.status === "working"} className="btn-subtle">
+                {backupState.status === "working" ? "Backing up…" : "Back up now"}
+              </button>
+            )}
+            {!confirmRestore && (
+              <button onClick={() => setConfirmRestore(true)} className="btn-subtle">
+                Restore a backup
+              </button>
+            )}
+          </div>
+          {confirmRestore && (
+            <div className="fade-up flex flex-col gap-2 rounded-xl bg-ember-wash px-4 py-3">
+              <p className="text-[13.5px] leading-relaxed text-ink">
+                The backup replaces everything Ember has now, and Ember restarts. Pick &ldquo;Ember backup.db&rdquo;
+                from Documents/Ember.
+              </p>
+              <div className="flex items-center gap-2">
+                <button onClick={handleRestore} className="btn-primary">
+                  Pick the file
+                </button>
+                <button onClick={() => setConfirmRestore(false)} className="btn-ghost">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          {backupState.status === "done" && <p className="text-[13.5px] text-moss">Saved to Documents/Ember.</p>}
+          {backupState.status === "error" && <p className="text-[13.5px] text-danger">{backupState.message}</p>}
+        </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <button onClick={handleExport} disabled={exportState.status === "working"} className="btn-subtle">
             {exportState.status === "working" ? "Exporting…" : "Export everything"}

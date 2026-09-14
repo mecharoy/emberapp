@@ -14,3 +14,11 @@ export function getDb(): Promise<Database> {
   }
   return dbPromise;
 }
+
+/** Closes the connection so the file can be swapped for a restored backup.
+ *  Nothing may touch the database afterwards; the app restarts. */
+export async function closeDb(): Promise<void> {
+  if (!dbPromise) return;
+  const db = await dbPromise;
+  await db.close();
+}

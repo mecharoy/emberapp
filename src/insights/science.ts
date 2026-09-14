@@ -77,6 +77,24 @@ export const SCIENCE: Record<string, ModuleScience> = {
   },
 };
 
+/** When each section opens, shown under its ⓘ note. Keep in step with
+ *  computeUnlocks() and the checks in windows/Insights.tsx. */
+export const UNLOCK: Record<string, string> = {
+  mood: "Opens after 5 journal entries.",
+  rhythm: "Opens after 14 entries spread over at least 3 different weeks.",
+  themes: "Opens after 10 entries.",
+  people: "Opens after 10 entries.",
+  habits: "Opens as soon as Ember spots a habit in one of your entries.",
+  movers: "Opens after 30 entries.",
+  emotions: "Opens after 20 entries.",
+  wellbeing: "Always open.",
+  sleep: "Opens after 7 nights with a bedtime and wake time in the check-in.",
+  routine: "Opens after a full week where you noted the time of the same thing (getting up, dinner, bed…) on at least 3 days.",
+  activities: "Opens after 10 entries, once an activity has come up.",
+  thinking: "Opens after 10 entries.",
+  reviews: "The weekly letter comes once a week with entries is over. The monthly report comes once the month is over.",
+};
+
 /** The first-run screen's short version. */
 export const SCIENCE_HIGHLIGHTS: { title: string; line: string }[] = [
   { title: "Writing it down", line: "Putting a day into words helps you make sense of it (Pennebaker)." },

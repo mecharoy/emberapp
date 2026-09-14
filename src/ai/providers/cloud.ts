@@ -61,10 +61,11 @@ export const CLOUD_PRESETS: CloudPreset[] = [
     id: "gemini",
     label: "Google AI Studio (Gemini)",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-    model: "gemini-3.8-flash",
+    // Flash-Lite: the bigger Flash models run out of free capacity (503) far more often.
+    model: "gemini-3.5-flash-lite",
     keysUrl: "https://aistudio.google.com/apikey",
     maxTokens: 4096,
-    note: "Free tier, no card. Strongest free option; free requests may be used to improve Google's models.",
+    note: "Free tier, no card. Uses Flash-Lite, which is busy less often than the bigger models; free requests may be used to improve Google's models.",
   },
   {
     id: "openrouter",

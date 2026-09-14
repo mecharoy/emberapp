@@ -253,9 +253,10 @@ export default function CounselorChat({
     await runTurn(turn.history, turn.sessionId);
   }
 
-  /** Wipes tonight's exchange and opens a fresh one. The check-in and the
-   *  day's notes are untouched, so it starts from the same place, not zero. */
-  async function handleRestart() {
+  /** Wipes tonight's exchange. With `redoCheckIn` it goes back to the check-in
+   *  form (filled in with the saved scores, to change); otherwise it opens a
+   *  fresh conversation from the same check-in and notes. */
+  async function handleRestart(redoCheckIn: boolean) {
     if (!session || busy) return;
     setConfirmRestart(false);
     await restartConversation(session.id);
@@ -272,7 +273,7 @@ export default function CounselorChat({
     setWriteNow(false);
     setView("conversation");
     setSession({ ...session, status: "open" });
-    await handleStart();
+    if (!redoCheckIn) await handleStart();
   }
 
   async function handleReopen() {
@@ -329,9 +330,12 @@ export default function CounselorChat({
           )}
           {!wrapped && confirmRestart && (
             <span className="flex flex-wrap items-center justify-end gap-1 text-[13.5px] text-ink-faint">
-              Clear this conversation?
-              <button onClick={handleRestart} className="btn-ghost text-ember">
-                Start over
+              Clear this conversation and start again from
+              <button onClick={() => handleRestart(true)} className="btn-ghost text-ember">
+                The check-in
+              </button>
+              <button onClick={() => handleRestart(false)} className="btn-ghost text-ember">
+                Just the talk
               </button>
               <button onClick={() => setConfirmRestart(false)} className="btn-ghost">
                 Keep it

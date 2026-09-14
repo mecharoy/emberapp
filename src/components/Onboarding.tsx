@@ -7,6 +7,7 @@ import { CLOUD_PRESETS } from "../ai/providers/cloud";
 import { setApiKey, setCloudApiKey } from "../secrets";
 import { ensureNotificationPermission } from "../scheduler";
 import { SCIENCE_HIGHLIGHTS } from "../insights/science";
+import { restoreFromFile } from "../backup";
 
 const PROVIDERS = [
   {
@@ -125,6 +126,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<"intro" | "setup" | "questions">("intro");
   const [answers, setAnswers] = useState<string[]>(() => QUESTIONS.map(() => ""));
+  const [restoreError, setRestoreError] = useState("");
 
   const preset = CLOUD_PRESETS.find((p) => p.id === presetId) ?? CLOUD_PRESETS[0];
 
@@ -199,6 +201,17 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
           <button onClick={() => setStep("setup")} className="btn-primary mt-8">
             Get started
           </button>
+          <button
+            onClick={() => {
+              setRestoreError("");
+              restoreFromFile().catch((e) => setRestoreError(e instanceof Error ? e.message : String(e)));
+            }}
+            className="btn-ghost mt-2"
+          >
+            Used Ember before? Restore your backup
+          </button>
+          <p className="hint text-center">If your phone backed Ember up, your journal is already back and this screen won&rsquo;t show.</p>
+          {restoreError && <p className="mt-2 text-center text-[13.5px] text-danger">{restoreError}</p>}
         </div>
       </div>
     );

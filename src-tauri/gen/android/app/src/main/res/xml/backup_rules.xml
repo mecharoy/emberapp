@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and older. What goes into the phone's own backup (Google
+     account, end-to-end encrypted when the phone has a screen lock) and comes
+     back when Ember is installed again. Only these files: never the API keys
+     in secrets/. -->
+<full-backup-content>
+    <include domain="root" path="ember.db" />
+    <include domain="root" path="ember.db-wal" />
+    <include domain="root" path="ember.db-shm" />
+    <include domain="sharedpref" path="ember-quick-note.xml" />
+</full-backup-content>

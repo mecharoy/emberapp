@@ -12,6 +12,7 @@ import { getSetting } from "./db/settings";
 import { localDateKey } from "./db/captures";
 import { conversationState } from "./db/sessions";
 import { startScheduler } from "./scheduler";
+import { backupIfDue } from "./backup";
 import { useBackButton } from "./useBackButton";
 
 function App() {
@@ -37,6 +38,13 @@ function App() {
   useEffect(() => {
     getSetting("onboarded").then((v) => setNeedsOnboarding(v !== "1"));
     startScheduler(); // reminders, missed-day skips, weekly review
+    // The daily copy in Documents/Ember: on opening, and when Ember is put away.
+    backupIfDue();
+    const onHide = () => {
+      if (document.visibilityState === "hidden") backupIfDue();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
   }, []);
 
   // Back from any other tab returns to Today; back on Today leaves the app.

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { SCIENCE } from "../../insights/science";
+import { SCIENCE, UNLOCK } from "../../insights/science";
 
 /** Section titles (open and locked) → their entry in insights/science.ts. */
 const SCIENCE_BY_TITLE: Record<string, string> = {
@@ -22,7 +22,9 @@ const SCIENCE_BY_TITLE: Record<string, string> = {
 /** The ⓘ next to a section title and the note it opens: how to read the
  *  section and the study behind it. The note spans the section's width. */
 function useInfo(title: string) {
-  const science = SCIENCE[SCIENCE_BY_TITLE[title] ?? ""];
+  const id = SCIENCE_BY_TITLE[title] ?? "";
+  const science = SCIENCE[id];
+  const unlock = UNLOCK[id];
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -56,6 +58,7 @@ function useInfo(title: string) {
       >
         <p className="text-[14px] leading-relaxed text-ink">{science.read}</p>
         <p className="text-[13.5px] leading-relaxed text-ink-soft">{science.basis}</p>
+        {unlock && <p className="text-[13.5px] font-medium leading-relaxed text-ember">{unlock}</p>}
         <p className="border-t border-rule pt-2 font-serif text-[13px] italic leading-snug text-ink-faint">{science.source}</p>
       </div>
     ) : null;

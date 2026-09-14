@@ -4,6 +4,14 @@ interface EmberAndroid {
   isQuickNoteEnabled(): boolean;
   setQuickNoteEnabled(enabled: boolean): void;
   refreshQuickNote(): void;
+  /** Android 10+: copies can go to Documents/Ember without a permission. */
+  backupCopySupported(): boolean;
+  /** Empty file path in the app cache for VACUUM INTO. */
+  backupSnapshotPath(): string;
+  /** Moves the snapshot to Documents/Ember. "" on success, else the problem. */
+  saveBackupCopy(): string;
+  /** Closes Ember and starts it again. */
+  restartApp(): void;
 }
 
 export function androidBridge(): EmberAndroid | undefined {

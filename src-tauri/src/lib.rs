@@ -68,9 +68,9 @@ fn migrations() -> Vec<Migration> {
 //
 // Android has no keychain the `keyring` crate can reach, so each key is a file
 // in the app's private data directory (/data/data/<package>/secrets/). Android
-// gives every app its own Linux user, so no other app can read it, and the
-// manifest turns off cloud backup so it never leaves the phone that way
-// either. Keys still never go into ember.db.
+// gives every app its own Linux user, so no other app can read it. The backup
+// rules in res/xml only take ember.db, so keys never leave the phone that way
+// either, and they never go into ember.db.
 
 /// Only whitelisted names — the webview can't use this as a general file store.
 fn secret_path(app: &tauri::AppHandle, name: &str) -> Result<PathBuf, String> {
@@ -116,6 +116,41 @@ fn secret_set(app: tauri::AppHandle, name: String, value: String) -> Result<(), 
     Ok(())
 }
 
+// ---------- Restoring a backup ----------
+
+/// Puts a backup in place of ember.db. The webview closes its connection
+/// first and restarts the app afterwards, so migrations run on the restored
+/// file. The replaced files are kept next to it as *.before-restore.
+#[tauri::command]
+fn backup_restore(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Expected the backup file's bytes.".into());
+    };
+    if !bytes.starts_with(b"SQLite format 3\x00") {
+        return Err("That file isn't an Ember backup.".into());
+    }
+    if !bytes.windows(20).any(|w| w == b"CREATE TABLE entries") {
+        return Err("That database has no journal in it.".into());
+    }
+    // tauri-plugin-sql opens sqlite:ember.db in the app config dir.
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Could not find the app's data folder: {e}"))?;
+    let db = dir.join("ember.db");
+    let incoming = dir.join("ember.db.restoring");
+    std::fs::write(&incoming, bytes).map_err(|e| format!("Could not write the backup: {e}"))?;
+    for suffix in ["", "-wal", "-shm"] {
+        let file = dir.join(format!("ember.db{suffix}"));
+        if file.exists() {
+            std::fs::rename(&file, dir.join(format!("ember.db{suffix}.before-restore")))
+                .map_err(|e| format!("Could not set the current journal aside: {e}"))?;
+        }
+    }
+    std::fs::rename(&incoming, &db).map_err(|e| format!("Could not put the backup in place: {e}"))?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -129,7 +164,7 @@ pub fn run() {
                 .add_migrations("sqlite:ember.db", migrations())
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![secret_get, secret_set])
+        .invoke_handler(tauri::generate_handler![secret_get, secret_set, backup_restore])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

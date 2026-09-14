@@ -21,6 +21,8 @@ export const SETTINGS_DEFAULTS: Record<SettingKey, string> = {
   reminder_last_fired: "",
   hidden_modules: "",
   journal_paper: "cream",
+  backup_copy: "1",
+  backup_last_at: "",
   assessments_enabled: "who5",
   assessments_snoozed_until: "",
   update_source: "",
