@@ -23,6 +23,7 @@ export const SETTINGS_DEFAULTS: Record<SettingKey, string> = {
   journal_paper: "cream",
   backup_copy: "1",
   backup_last_at: "",
+  jobs_last_error: "",
   assessments_enabled: "who5",
   assessments_snoozed_until: "",
   update_source: "",

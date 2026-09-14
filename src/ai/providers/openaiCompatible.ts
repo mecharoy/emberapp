@@ -15,6 +15,12 @@ export interface OpenAiCompatibleConfig {
    *  tiers refuse a request whose *expected* output exceeds their per-minute
    *  output allowance, so for those it must be set and kept under the cap. */
   maxTokens?: number;
+  /** Most a background job may ask for (ChatOptions.maxTokens is capped
+   *  here). Unset: a job gets what it asks for. */
+  jobMaxTokens?: number;
+  /** A free tier's tokens-per-minute allowance, when it counts the prompt and
+   *  the requested reply together (Groq). A job's reply is shrunk to fit. */
+  tokensPerMinute?: number;
   /** Extra body fields for this endpoint only — provider-specific switches
    *  such as Groq's `reasoning_effort`. Never sent to an endpoint that was
    *  not declared with them, since an unknown field is a 400 on some. */
@@ -37,21 +43,54 @@ function toOpenAiMessages(messages: ChatMessage[], system: string) {
   return [{ role: "system", content: system }, ...messages.map((m) => ({ role: m.role, content: m.content }))];
 }
 
+/** Smallest reply worth sending a job for; below it the reply would be cut off. */
+export const MIN_JOB_REPLY_TOKENS = 1200;
+
+/** Rough prompt size in tokens. Measured English prompts run ~3.9–4.6
+ *  characters a token; 3.5 errs on the big side. */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 3.5);
+}
+
+/** The max_tokens to send. A chat turn uses the usual ceiling; a job gets
+ *  what it asks for, but never past the job ceiling nor past what is left of
+ *  a tokens-per-minute allowance after the prompt. Undefined sends none. */
+export function replyCeiling(
+  config: Pick<OpenAiCompatibleConfig, "maxTokens" | "jobMaxTokens" | "tokensPerMinute">,
+  wanted?: number,
+  promptTokens = 0,
+): number | undefined {
+  if (!wanted) return config.maxTokens;
+  let ceiling = config.jobMaxTokens ? Math.min(wanted, config.jobMaxTokens) : wanted;
+  if (config.tokensPerMinute) ceiling = Math.min(ceiling, config.tokensPerMinute - promptTokens);
+  return ceiling;
+}
+
 async function callEndpoint(
   config: OpenAiCompatibleConfig,
   messages: ChatMessage[],
   system: string,
   stream: boolean,
+  wantedTokens?: number,
 ) {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (config.apiKey) headers.authorization = `Bearer ${config.apiKey}`;
 
+  const outgoing = toOpenAiMessages(messages, system);
+  const maxTokens = replyCeiling(config, wantedTokens, estimateTokens(JSON.stringify(outgoing)));
+  if (wantedTokens && maxTokens !== undefined && maxTokens < MIN_JOB_REPLY_TOKENS) {
+    throw new ProviderError(
+      "This is too much for the free tier to take in one go.",
+      "The free tier counts what Ember sends and the reply together, and this job needs more than it allows a minute. " +
+        "Gemini (Google AI Studio) has room for it: switch in Settings > AI provider.",
+    );
+  }
   const body = JSON.stringify({
     model: config.model,
     stream,
-    ...(config.maxTokens ? { max_tokens: config.maxTokens } : {}),
+    ...(maxTokens ? { max_tokens: maxTokens } : {}),
     ...(config.extraBody ?? {}),
-    messages: toOpenAiMessages(messages, system),
+    messages: outgoing,
   });
   let res: Response;
   let attempts = 1;
@@ -193,8 +232,15 @@ export function createOpenAiCompatibleProvider(config: OpenAiCompatibleConfig): 
         applyTurnPreamble(messages, options?.turnPreamble),
         system,
         false,
+        options?.maxTokens,
       );
       const json = await res.json();
+      if (json?.choices?.[0]?.finish_reason === "length") {
+        throw new ProviderError(
+          "The reply was cut off before it was finished.",
+          'It ran into the reply length limit. Raise "Longest reply" in Settings > AI provider, or pick a service with a bigger free tier.',
+        );
+      }
       const text = json?.choices?.[0]?.message?.content;
       if (typeof text === "string" && text.length > 0) return stripReasoning(text);
       throw new ProviderError("The endpoint's response did not contain text content.");

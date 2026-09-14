@@ -13,6 +13,7 @@
 import { z } from "zod";
 import { getProvider } from "./factory";
 import { extractJson } from "./json";
+import { JOB_REPLY_TOKENS } from "./replySizes";
 import {
   FORTNIGHT_SYSTEM_PROMPT,
   buildFortnightUserPrompt,
@@ -186,7 +187,9 @@ export async function fortnightWithProvider(provider: AIProvider, input: Fortnig
         ? basePrompt
         : `${basePrompt}\n\nYour previous response could not be parsed as valid JSON matching the required shape: ${lastError}\nReturn ONLY the corrected JSON object, nothing else.`;
     try {
-      const raw = await provider.complete([{ role: "user", content: prompt }], FORTNIGHT_SYSTEM_PROMPT);
+      const raw = await provider.complete([{ role: "user", content: prompt }], FORTNIGHT_SYSTEM_PROMPT, {
+        maxTokens: JOB_REPLY_TOKENS.memory,
+      });
       return { ok: true, summary: FortnightSummarySchema.parse(extractJson(raw)) };
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);

@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { getProvider } from "./factory";
 import { extractJson } from "./json";
+import { JOB_REPLY_TOKENS } from "./replySizes";
 import {
   MONTHLY_SYSTEM_PROMPT,
   buildMonthlyUserPrompt,
@@ -97,7 +98,9 @@ export async function monthlyWithProvider(
         ? basePrompt
         : `${basePrompt}\n\nYour previous response could not be parsed as valid JSON matching the required shape: ${lastError}\nReturn ONLY the corrected JSON object, nothing else.`;
     try {
-      const raw = await provider.complete([{ role: "user", content: prompt }], MONTHLY_SYSTEM_PROMPT);
+      const raw = await provider.complete([{ role: "user", content: prompt }], MONTHLY_SYSTEM_PROMPT, {
+        maxTokens: JOB_REPLY_TOKENS.monthly,
+      });
       return { ok: true, report: MonthlyReportSchema.parse(extractJson(raw)) };
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);

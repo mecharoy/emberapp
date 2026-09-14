@@ -66,6 +66,8 @@ interface Loaded {
   assessments: Assessment[];
   summaries: MemorySummary[];
   enabledInstruments: Instrument[];
+  /** What the last background review run couldn't write, "" if nothing. */
+  jobsError: string;
 }
 
 const plural = (n: number) => `${n} entr${n === 1 ? "y" : "ies"}`;
@@ -112,6 +114,7 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
       assessments,
       summaries,
       enabledCsv,
+      jobsError,
     ] = await Promise.all([
       listAllDayMetrics(),
       listEntries(),
@@ -126,6 +129,7 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
       listAssessments(),
       listMemorySummaries(),
       getSetting("assessments_enabled"),
+      getSetting("jobs_last_error"),
     ]);
     const hidden = new Set(hiddenCsv.split(",").map((s) => s.trim()).filter(Boolean));
     setData({
@@ -142,6 +146,7 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
       assessments,
       summaries,
       enabledInstruments: parseEnabledInstruments(enabledCsv),
+      jobsError,
     });
   }
 
@@ -259,10 +264,16 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
               </button>
             </div>
           )}
-          {refreshState.message && (
+          {refreshState.message ? (
             <span className="text-[13px] leading-snug text-ink-faint" aria-live="polite">
               {refreshState.message}
             </span>
+          ) : (
+            data.jobsError && (
+              <span className="text-[13px] leading-snug text-danger">
+                Ember couldn&rsquo;t write something in the background ({data.jobsError}). Refresh to try again.
+              </span>
+            )
           )}
         </div>
       </div>

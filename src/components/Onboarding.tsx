@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { localDateKey } from "../db/captures";
 import { setProfileSummary } from "../db/profile";
 import { composeSeedProfile } from "../db/profileSeed";
@@ -85,30 +85,104 @@ function Wordmark({ size }: { size: "large" | "medium" }) {
   );
 }
 
-/** The intro clip (public/intro.mp4). Until that file exists, the wordmark
- *  stands in for it. */
-function IntroVideo() {
+type Box = { top: number; left: number; width: number; height: number };
+
+/** The intro clip (public/intro.mp4). It first plays over the whole screen;
+ *  when it ends (or on Skip) it shrinks into its card at the top of the page
+ *  and keeps looping there, and `onSettled` lets the page show its text.
+ *  Without the file, the wordmark stands in and the page shows at once. */
+function IntroVideo({ scrollerRef, onSettled }: { scrollerRef: React.RefObject<HTMLDivElement | null>; onSettled: () => void }) {
+  const slotRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [failed, setFailed] = useState(false);
+  const [phase, setPhase] = useState<"full" | "shrinking" | "card">(() =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "card" : "full",
+  );
+  const [box, setBox] = useState<Box | null>(null);
+
+  // Where the card sits inside the scrolling page.
+  const slotBox = (): Box | null => {
+    const slot = slotRef.current;
+    const page = scrollerRef.current;
+    if (!slot || !page) return null;
+    const s = slot.getBoundingClientRect();
+    const p = page.getBoundingClientRect();
+    return { top: s.top - p.top + page.scrollTop, left: s.left - p.left, width: s.width, height: s.height };
+  };
+
+  function shrink() {
+    if (phase !== "full") return;
+    setBox(slotBox());
+    setPhase("shrinking");
+  }
+
+  useEffect(() => {
+    if (failed && phase === "full") setPhase("card");
+    // transitionend never comes if the page isn't drawn meanwhile (app in
+    // the background), so the text can't be left hidden.
+    if (phase !== "shrinking") return;
+    const timer = setTimeout(() => setPhase("card"), 900);
+    return () => clearTimeout(timer);
+  }, [failed, phase]);
+
+  useEffect(() => {
+    if (phase !== "card") return;
+    setBox(slotBox());
+    onSettled();
+    const video = videoRef.current;
+    if (video) {
+      video.loop = true;
+      if (video.ended || video.paused) video.play().catch(() => {});
+    }
+    const onResize = () => setBox(slotBox());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [phase]);
+
+  const full = phase === "full";
+  const style: React.CSSProperties = full || !box
+    ? { top: 0, left: 0, width: "100%", height: "100%" }
+    : { top: box.top, left: box.left, width: box.width, height: box.height };
+
   return (
-    <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-rule bg-paper-deep">
-      {!failed && (
-        <video
-          className="absolute inset-0 h-full w-full object-cover"
-          src="/intro.mp4"
-          autoPlay
-          muted
-          loop
-          playsInline
-          onError={() => setFailed(true)}
-        />
-      )}
-      {failed && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-          <Wordmark size="large" />
-          <p className="font-serif text-[18px] italic text-ink-soft">A journal that writes itself.</p>
-        </div>
-      )}
-    </div>
+    <>
+      {/* Holds the card's place in the page; the clip lands on top of it. */}
+      <div ref={slotRef} className="aspect-[4/5] w-full" aria-hidden="true" />
+      <div
+        style={{
+          ...style,
+          transition: phase === "shrinking" ? "top 700ms cubic-bezier(.4,0,.2,1), left 700ms cubic-bezier(.4,0,.2,1), width 700ms cubic-bezier(.4,0,.2,1), height 700ms cubic-bezier(.4,0,.2,1), border-radius 700ms" : undefined,
+        }}
+        onTransitionEnd={(e) => {
+          if (e.propertyName === "height" && phase === "shrinking") setPhase("card");
+        }}
+        className={`absolute z-10 overflow-hidden bg-paper-deep ${full ? "rounded-none" : "rounded-2xl border border-rule"}`}
+      >
+        {!failed && (
+          <video
+            ref={videoRef}
+            className="h-full w-full object-contain"
+            src="/intro.mp4"
+            autoPlay
+            muted
+            playsInline
+            onEnded={shrink}
+            onError={() => setFailed(true)}
+          />
+        )}
+        {failed && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <Wordmark size="large" />
+            <p className="font-serif text-[18px] italic text-ink-soft">A journal that writes itself.</p>
+          </div>
+        )}
+        {full && !failed && (
+          <button onClick={shrink} className="btn-ghost absolute right-3 top-3">
+            Skip
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -127,6 +201,9 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<"intro" | "setup" | "questions">("intro");
   const [answers, setAnswers] = useState<string[]>(() => QUESTIONS.map(() => ""));
   const [restoreError, setRestoreError] = useState("");
+  const introScrollerRef = useRef<HTMLDivElement>(null);
+  // The intro text waits until the clip has shrunk into its card.
+  const [introSettled, setIntroSettled] = useState(false);
 
   const preset = CLOUD_PRESETS.find((p) => p.id === presetId) ?? CLOUD_PRESETS[0];
 
@@ -178,10 +255,16 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
 
   if (step === "intro") {
     return (
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-paper">
-        <div key="intro" className="page mx-auto flex min-h-full max-w-[580px] flex-col px-6 pb-8 pt-6">
-          <IntroVideo />
+      <div ref={introScrollerRef} className={`fixed inset-0 z-50 bg-paper ${introSettled ? "overflow-y-auto" : "overflow-hidden"}`}>
+        {/* No .page animation here: its transform would make this box, not the
+            scroller, the frame the full-screen clip is positioned in. */}
+        <div key="intro" className="mx-auto flex min-h-full max-w-[580px] flex-col px-6 pb-8 pt-6">
+          <IntroVideo scrollerRef={introScrollerRef} onSettled={() => setIntroSettled(true)} />
 
+          <div
+            className={`flex flex-col transition-opacity duration-500 ${introSettled ? "opacity-100" : "pointer-events-none opacity-0"}`}
+            aria-hidden={!introSettled}
+          >
           <h1 className="mt-7 font-serif text-[28px] leading-tight tracking-[-0.015em] text-ink">
             Your days, read closely.
           </h1>
@@ -212,6 +295,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
           </button>
           <p className="hint text-center">If your phone backed Ember up, your journal is already back and this screen won&rsquo;t show.</p>
           {restoreError && <p className="mt-2 text-center text-[13.5px] text-danger">{restoreError}</p>}
+          </div>
         </div>
       </div>
     );

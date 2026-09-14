@@ -28,6 +28,12 @@ export interface ChatOptions {
    * has already rewritten parts of it.
    */
   turnPreamble?: string;
+  /**
+   * How long a reply this call may need. Background jobs (journal entry,
+   * extraction, reviews) ask for more than a chat turn; the provider raises
+   * its usual ceiling to this, but never past what its tier allows.
+   */
+  maxTokens?: number;
 }
 
 /** Prepends ChatOptions.turnPreamble to the outgoing user message. Every

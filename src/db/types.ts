@@ -175,4 +175,5 @@ export type SettingKey =
   | "update_dismissed_version" // a release the user said "later" to; not offered again on launch
   | "journal_paper" // default paper for journal entries (components/paper.ts id)
   | "backup_copy" // "1" = keep a daily copy in Documents/Ember
-  | "backup_last_at"; // ISO timestamp of the last copy written
+  | "backup_last_at" // ISO timestamp of the last copy written
+  | "jobs_last_error"; // what the last background review run couldn't write, "" if nothing

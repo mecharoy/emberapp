@@ -38,6 +38,13 @@ export interface CloudPreset {
   /** Ceiling on one reply. Must stay under the tier's output-per-minute
    *  allowance, which the provider checks *before* generating anything. */
   maxTokens: number;
+  /** Ceiling for background jobs (entries, reviews, reports), which need
+   *  longer replies than a chat turn. Prompt and reply together must still
+   *  fit the tier's tokens-per-minute allowance. */
+  jobMaxTokens: number;
+  /** Tokens-per-minute allowance when the tier counts prompt and requested
+   *  reply together, so a job's reply is shrunk to fit. */
+  tokensPerMinute?: number;
   /** Provider-specific body fields, e.g. switching a reasoning model's
    *  scratchpad off so it neither shows up in chat nor spends the reply's
    *  tokens. Only sent to this endpoint. */
@@ -52,6 +59,10 @@ export const CLOUD_PRESETS: CloudPreset[] = [
     model: "qwen/qwen3.6-27b",
     keysUrl: "https://console.groq.com/keys",
     maxTokens: 900,
+    // Free tier (console.groq.com/docs/rate-limits, Sep 2026): 8K tokens a
+    // minute for qwen3.6-27b, counting the prompt and the requested reply.
+    jobMaxTokens: 3000,
+    tokensPerMinute: 8000,
     // qwen3.6 is a reasoning model: without this it streams its scratchpad as
     // the reply and spends most of the 900-token ceiling on it.
     extraBody: { reasoning_effort: "none" },
@@ -65,6 +76,7 @@ export const CLOUD_PRESETS: CloudPreset[] = [
     model: "gemini-3.5-flash-lite",
     keysUrl: "https://aistudio.google.com/apikey",
     maxTokens: 4096,
+    jobMaxTokens: 8192,
     note: "Free tier, no card. Uses Flash-Lite, which is busy less often than the bigger models; free requests may be used to improve Google's models.",
   },
   {
@@ -74,6 +86,7 @@ export const CLOUD_PRESETS: CloudPreset[] = [
     model: "openrouter/free",
     keysUrl: "https://openrouter.ai/keys",
     maxTokens: 2048,
+    jobMaxTokens: 4096,
     note: "Free tier, no card. `openrouter/free` picks a free model for you; roughly 50 requests a day.",
   },
   {
@@ -83,6 +96,7 @@ export const CLOUD_PRESETS: CloudPreset[] = [
     model: "qwen-3.8-27b",
     keysUrl: "https://cloud.cerebras.ai",
     maxTokens: 2048,
+    jobMaxTokens: 4096,
     note: "Free tier, no card. Fast, with a daily token allowance.",
   },
   {
@@ -92,6 +106,7 @@ export const CLOUD_PRESETS: CloudPreset[] = [
     model: "mistral-small-latest",
     keysUrl: "https://console.mistral.ai/api-keys",
     maxTokens: 4096,
+    jobMaxTokens: 8192,
     note: "Free experimentation tier, no card.",
   },
 ];
@@ -118,6 +133,8 @@ export function createCloudProvider(config: CloudConfig): AIProvider {
     ...config,
     kind: "cloud",
     maxTokens: config.maxTokens || preset?.maxTokens || DEFAULT_CLOUD_MAX_TOKENS,
+    jobMaxTokens: preset?.jobMaxTokens,
+    tokensPerMinute: preset?.tokensPerMinute,
     extraBody: preset?.extraBody,
   });
 }

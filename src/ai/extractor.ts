@@ -2,6 +2,7 @@ import { z } from "zod";
 import { emit } from "@tauri-apps/api/event";
 import { getProvider } from "./factory";
 import { extractJson } from "./json";
+import { JOB_REPLY_TOKENS } from "./replySizes";
 import {
   EXTRACTOR_SYSTEM_PROMPT,
   buildExtractorUserPrompt,
@@ -129,7 +130,9 @@ export async function extractWithProvider(
         : `${basePrompt}\n\nYour previous response could not be parsed as valid JSON matching the required shape: ${lastError}\nReturn ONLY the corrected JSON object, nothing else.`;
 
     try {
-      const raw = await provider.complete([{ role: "user", content: prompt }], EXTRACTOR_SYSTEM_PROMPT);
+      const raw = await provider.complete([{ role: "user", content: prompt }], EXTRACTOR_SYSTEM_PROMPT, {
+        maxTokens: JOB_REPLY_TOKENS.extract,
+      });
       const extraction = ExtractionSchema.parse(extractJson(raw));
       return { ok: true, extraction };
     } catch (e) {

@@ -1,0 +1,9 @@
+Ember: ideas for upcoming updates
+
+1. Google Drive sync
+   Keep the journal backed up to your own Google Drive, and bring it back on a new phone.
+
+2. Better prompts
+   Improve the instructions behind the evening conversation, the journal entry and the Insights.
+
+Have an idea? Open an issue: https://github.com/mecharoy/emberapp/issues

@@ -22,12 +22,17 @@ they filled it in — the user's own check-in, you distill the day into
 structured data. You never invent: every value must be grounded in something
 actually written, said or entered. When something is unclear or simply
 wasn't mentioned, use null (for numbers) or leave the list empty — never guess.
+The one exception is mood, below.
 
 Output ONLY a JSON object — no markdown code fences, no commentary before or
 after it — matching exactly this shape:
 {
-  "mood": 6,                      // integer 1-10 for the day overall, or null if genuinely unclear.
-                                  // If the CHECK-IN gives a mood, copy it exactly.
+  "mood": 6,                      // integer 1-10 for the day overall. If the CHECK-IN gives a mood, copy
+                                  // it exactly. Otherwise ESTIMATE it from how they describe the day
+                                  // in their own words (1 = awful, 5 = middling, 10 = wonderful):
+                                  // "really well, so relieved" is about 8, "exhausted and on edge" about
+                                  // 3, "fine" about 5-6. Weigh the day as a whole, not its last line.
+                                  // null only when they said nothing about how the day felt.
   "energy": 4,                    // integer 1-10, or null. If the CHECK-IN gives energy, copy it.
   "summary_line": "Draining vendor conflict, redeemed by a strong gym session.",
                                   // ONE sentence capturing the day, used in chart tooltips

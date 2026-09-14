@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getProvider } from "./factory";
 import { extractJson } from "./json";
+import { JOB_REPLY_TOKENS } from "./replySizes";
 import {
   JOURNAL_SYSTEM_PROMPT,
   buildJournalUserPrompt,
@@ -40,7 +41,9 @@ export async function generateJournalEntry(input: JournalInput): Promise<Journal
         : `${basePrompt}\n\nYour previous response could not be parsed as valid JSON matching the required shape: ${lastError}\nReturn ONLY the corrected JSON object, nothing else.`;
 
     try {
-      const raw = await provider.complete([{ role: "user", content: prompt }], JOURNAL_SYSTEM_PROMPT);
+      const raw = await provider.complete([{ role: "user", content: prompt }], JOURNAL_SYSTEM_PROMPT, {
+        maxTokens: JOB_REPLY_TOKENS.journal,
+      });
       const parsed = extractJson(raw);
       const entry = JournalEntrySchema.parse(parsed);
       return { ok: true, entry };

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getProvider } from "./factory";
 import { extractJson } from "./json";
+import { JOB_REPLY_TOKENS } from "./replySizes";
 import {
   REVIEW_SYSTEM_PROMPT,
   buildReviewUserPrompt,
@@ -52,7 +53,9 @@ export async function reviewWithProvider(
         : `${basePrompt}\n\nYour previous response could not be parsed as valid JSON matching the required shape: ${lastError}\nReturn ONLY the corrected JSON object, nothing else.`;
 
     try {
-      const raw = await provider.complete([{ role: "user", content: prompt }], REVIEW_SYSTEM_PROMPT);
+      const raw = await provider.complete([{ role: "user", content: prompt }], REVIEW_SYSTEM_PROMPT, {
+        maxTokens: JOB_REPLY_TOKENS.weekly,
+      });
       const review = WeeklyReviewSchema.parse(extractJson(raw));
       return { ok: true, review };
     } catch (e) {

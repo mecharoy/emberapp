@@ -48,10 +48,16 @@ function buildRequestPayload(messages: ChatMessage[], system: string) {
   };
 }
 
-async function callAnthropic(config: AnthropicConfig, messages: ChatMessage[], system: string, stream: boolean) {
+async function callAnthropic(
+  config: AnthropicConfig,
+  messages: ChatMessage[],
+  system: string,
+  stream: boolean,
+  wantedTokens?: number,
+) {
   const body = JSON.stringify({
     model: config.model,
-    max_tokens: MAX_TOKENS,
+    max_tokens: Math.max(MAX_TOKENS, wantedTokens ?? 0),
     stream,
     ...buildRequestPayload(messages, system),
   });
@@ -190,8 +196,12 @@ export function createAnthropicProvider(config: AnthropicConfig): AIProvider {
         applyTurnPreamble(messages, options?.turnPreamble),
         system,
         false,
+        options?.maxTokens,
       );
       const json = await res.json();
+      if (json?.stop_reason === "max_tokens") {
+        throw new ProviderError("The reply was cut off before it was finished.", "It ran into the reply length limit.");
+      }
       const block = json?.content?.[0];
       if (block?.type === "text" && typeof block.text === "string") {
         return block.text as string;

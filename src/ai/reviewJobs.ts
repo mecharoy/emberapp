@@ -3,6 +3,7 @@
 // refresh button. Each job is a cheap no-op when nothing is due.
 
 import { emit } from "@tauri-apps/api/event";
+import { setSetting } from "../db/settings";
 import { runWeeklyReviewIfDue, type ReviewResult } from "./review";
 import { runMonthlyReportIfDue, type MonthlyResult } from "./monthly";
 import { runFortnightlySummaryIfDue, type FortnightResult } from "./fortnightly";
@@ -19,6 +20,18 @@ export async function runReviewJobsAndNotify(): Promise<ReviewJobsResult> {
   const weekly = await runWeeklyReviewIfDue().catch(fail);
   const monthly = await runMonthlyReportIfDue().catch(fail);
   const fortnightly = await runFortnightlySummaryIfDue().catch(fail);
-  if (weekly?.ok || monthly?.ok || fortnightly?.ok) await emit("reviews:updated").catch(() => {});
+
+  // Remembered so Insights can say so; these run unseen and would otherwise
+  // just never appear. Cleared by the next run with no failure.
+  const failed = (
+    [
+      ["weekly letter", weekly],
+      ["monthly report", monthly],
+      ["memory summary", fortnightly],
+    ] as const
+  ).flatMap(([name, r]) => (r && !r.ok ? [`${name}: ${r.error}`] : []));
+  await setSetting("jobs_last_error", failed.length > 0 ? failed.join(" · ") : "").catch(() => {});
+
+  if (weekly || monthly || fortnightly) await emit("reviews:updated").catch(() => {});
   return { weekly, monthly, fortnightly };
 }
