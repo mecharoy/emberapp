@@ -13,6 +13,7 @@ import { localDateKey } from "./db/captures";
 import { conversationState } from "./db/sessions";
 import { startScheduler } from "./scheduler";
 import { backupIfDue } from "./backup";
+import { startComputerSync } from "./lan/phoneLink";
 import { useBackButton } from "./useBackButton";
 
 function App() {
@@ -38,6 +39,7 @@ function App() {
   useEffect(() => {
     firstRunScreen().then(setFirstRun);
     startScheduler(); // reminders, missed-day skips, weekly review
+    startComputerSync(); // the journal on a paired computer, when on the same Wi-Fi
     // The daily copy in Documents/Ember: on opening, and when Ember is put away.
     backupIfDue();
     const onHide = () => {

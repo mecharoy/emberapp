@@ -17,7 +17,9 @@ import { extractReminders, hideMarkersWhileStreaming } from "../ai/reminders";
 import { extractJournalRequest } from "../ai/journalMarker";
 import { ProviderError } from "../ai/types";
 import { nowLocalMinute } from "../scheduler";
-import { emit } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
+import type { ApplyResult } from "../db/sync";
+import { startLiveSync } from "../lan/phoneLink";
 import EntryReview from "./EntryReview";
 import CheckInForm from "./CheckInForm";
 
@@ -77,6 +79,8 @@ export default function CounselorChat({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const stopRef = useRef<(() => void) | null>(null);
   const lastTurnRef = useRef<Turn | null>(null);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
   // Messages already saved when the chat opened appear as they are; only the
   // ones sent while it's open settle in with the ink animation.
   const firstNewIdRef = useRef(Number.POSITIVE_INFINITY);
@@ -98,6 +102,29 @@ export default function CounselorChat({
       firstNewIdRef.current = loaded.reduce((max, m) => Math.max(max, m.id), 0) + 1;
       setMessages(loaded);
     })();
+  }, [date]);
+
+  // Talking through the computer's model: keep both devices in step while
+  // the conversation is on screen.
+  useEffect(() => {
+    if (view !== "conversation") return;
+    return startLiveSync();
+  }, [view]);
+
+  // The other device wrote to this day (a sync): show it, unless a reply is
+  // arriving here right now, in which case the next sync brings it.
+  useEffect(() => {
+    const unlisten = listen<ApplyResult>("sync:applied", async (event) => {
+      if (!event.payload.dates.includes(date) || busyRef.current) return;
+      const s = await getOrCreateTodaySession(date);
+      const loaded = await listMessages(s.id);
+      if (busyRef.current) return;
+      setSession(s);
+      setMessages(loaded);
+    });
+    return () => {
+      unlisten.then((u) => u());
+    };
   }, [date]);
 
   // Autoscroll only when the user is already near the bottom — never yank
@@ -366,7 +393,7 @@ export default function CounselorChat({
       ) : (
         <>
           <div ref={scrollerRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
-            {visibleMessages.length === 0 && (
+            {visibleMessages.length === 0 && wrapped && (
               <p className="py-6 text-center font-serif text-[15px] italic text-ink-faint">
                 No conversation this time. The entry was written from your notes.
               </p>

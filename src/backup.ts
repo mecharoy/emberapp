@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { androidBridge } from "./androidBridge";
 import { closeDb } from "./db/client";
+import { noteJournalRestore } from "./lan/syncEvents";
 import { hasJournalData, readStagedBackup, snapshotDatabase, type BackupSummary } from "./db/backup";
 import { getSetting, setSetting } from "./db/settings";
 
@@ -74,6 +75,7 @@ export async function pickBackup(): Promise<BackupSummary | null> {
 
 /** Puts the picked backup in place of the current journal and restarts Ember. */
 export async function restorePickedBackup(): Promise<void> {
+  noteJournalRestore();
   await closeDb();
   try {
     await invoke("backup_restore");

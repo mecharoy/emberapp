@@ -96,12 +96,16 @@ export function parseManifest(raw: unknown, source: string, platform: PlatformKe
     : typeof m.release_page === "string" && isGithubHttps(m.release_page)
       ? m.release_page
       : null;
-  const platforms = (m.platforms ?? {}) as Record<string, { url?: unknown } | undefined>;
-  const direct = platform ? platforms[platform]?.url : undefined;
+  const platforms = (m.platforms ?? {}) as Record<string, { url?: unknown; version?: unknown } | undefined>;
+  const entry = platform ? platforms[platform] : undefined;
+  const direct = entry?.url;
   const downloadUrl = isGithubHttps(direct) ? direct : releasePage;
   if (!downloadUrl || !releasePage) return null;
+  // The phone and the computer app ship as one release but keep separate
+  // version numbers, so a platform can say which one it's actually at.
+  const platformVersion = typeof entry?.version === "string" ? entry.version.trim().replace(/^v/i, "") : "";
   return {
-    version,
+    version: /^\d+(\.\d+){0,3}/.test(platformVersion) ? platformVersion : version,
     notes: typeof m.notes === "string" ? m.notes.slice(0, 600) : "",
     downloadUrl,
     releasePage,

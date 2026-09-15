@@ -1,5 +1,8 @@
-// Ember for Android: database migrations, plugins, and a private file store
-// for API keys.
+// Ember for Android: database migrations, plugins, a private file store for
+// API keys, and the link with Ember on a computer.
+
+mod lan_client;
+mod lan_proto;
 
 use std::path::PathBuf;
 use tauri::Manager;
@@ -65,6 +68,18 @@ fn migrations() -> Vec<Migration> {
             version: 10,
             description: "lunch, evening break and dinner in the check-in",
             sql: include_str!("../migrations/0010_checkin_day_times.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 11,
+            description: "sync between computer and phone",
+            sql: include_str!("../migrations/0011_sync.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 12,
+            description: "sync state that outlives a reset",
+            sql: include_str!("../migrations/0012_sync_state.sql"),
             kind: MigrationKind::Up,
         },
     ]
@@ -184,6 +199,7 @@ fn backup_restore(app: tauri::AppHandle) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(lan_client::LanClient::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_http::init())
@@ -194,7 +210,19 @@ pub fn run() {
                 .add_migrations("sqlite:ember.db", migrations())
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![secret_get, secret_set, backup_stage, backup_restore])
+        .invoke_handler(tauri::generate_handler![
+            secret_get,
+            secret_set,
+            backup_stage,
+            backup_restore,
+            lan_client::lan_discover,
+            lan_client::lan_link,
+            lan_client::lan_unlink,
+            lan_client::lan_pair,
+            lan_client::lan_call,
+            lan_client::lan_chat,
+            lan_client::lan_chat_cancel,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -49,7 +49,7 @@ export default function StylePicker({
     <div className="flex flex-col gap-5">
       <Choice label="Tone" options={TONES} value={tone} onChange={onTone} />
       <Choice label="Approach" options={APPROACHES} value={approach} onChange={onApproach} />
-      <p className="hint">Whichever you pick, Ember isn&rsquo;t a therapist and points you to real help in a crisis.</p>
+      <p className="hint">Ember is not a therapist. In a crisis, it points you to real help.</p>
     </div>
   );
 }

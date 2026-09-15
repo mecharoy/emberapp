@@ -46,7 +46,7 @@ export const INSTRUMENTS: Record<Instrument, InstrumentDef> = {
   who5: {
     id: "who5",
     name: "WHO-5 Well-Being Index",
-    what: "Five questions on how you have been feeling. The World Health Organization's short wellbeing check.",
+    what: "Wellbeing. 5 questions.",
     stem:
       "Please indicate for each of the five statements which is closest to how you have been feeling over the last two weeks. Notice that higher numbers mean better well-being.",
     items: [
@@ -71,7 +71,7 @@ export const INSTRUMENTS: Record<Instrument, InstrumentDef> = {
   phq9: {
     id: "phq9",
     name: "PHQ-9",
-    what: "Nine questions doctors use to check for depression and follow how it changes.",
+    what: "Depression screening. 9 questions.",
     stem: "Over the last 2 weeks, how often have you been bothered by any of the following problems?",
     items: [
       "Little interest or pleasure in doing things",
@@ -91,7 +91,7 @@ export const INSTRUMENTS: Record<Instrument, InstrumentDef> = {
   gad7: {
     id: "gad7",
     name: "GAD-7",
-    what: "Seven questions doctors use to check for anxiety and follow how it changes.",
+    what: "Anxiety screening. 7 questions.",
     stem: "Over the last 2 weeks, how often have you been bothered by the following problems?",
     items: [
       "Feeling nervous, anxious or on edge",

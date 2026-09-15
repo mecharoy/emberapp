@@ -91,7 +91,7 @@ export default function UpdatesAndFeedback({
             </span>
           )}
         </div>
-        <p className="hint">Download fetches the new APK; open it to update. Your journal stays as it is.</p>
+        <p className="hint">Open the downloaded APK to update. Your journal is kept.</p>
       </div>
 
       <div className="flex flex-col gap-3">

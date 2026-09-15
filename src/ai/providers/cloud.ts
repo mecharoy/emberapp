@@ -66,7 +66,7 @@ export const CLOUD_PRESETS: CloudPreset[] = [
     // qwen3.6 is a reasoning model: without this it streams its scratchpad as
     // the reply and spends most of the 900-token ceiling on it.
     extraBody: { reasoning_effort: "none" },
-    note: "Free tier, no card. Very fast; capped per minute and per day. Groq retires model names on a schedule — check console.groq.com/docs/models if one stops working.",
+    note: "Free, no card. Fast. Limits per minute and per day.",
   },
   {
     id: "gemini",
@@ -77,7 +77,7 @@ export const CLOUD_PRESETS: CloudPreset[] = [
     keysUrl: "https://aistudio.google.com/apikey",
     maxTokens: 4096,
     jobMaxTokens: 8192,
-    note: "Free tier, no card. Uses Flash-Lite, which is busy less often than the bigger models; free requests may be used to improve Google's models.",
+    note: "Free, no card. Google may use free requests to improve its models.",
   },
   {
     id: "openrouter",
@@ -87,7 +87,7 @@ export const CLOUD_PRESETS: CloudPreset[] = [
     keysUrl: "https://openrouter.ai/keys",
     maxTokens: 2048,
     jobMaxTokens: 4096,
-    note: "Free tier, no card. `openrouter/free` picks a free model for you; roughly 50 requests a day.",
+    note: "Free, no card. About 50 requests a day.",
   },
   {
     id: "cerebras",
@@ -97,7 +97,7 @@ export const CLOUD_PRESETS: CloudPreset[] = [
     keysUrl: "https://cloud.cerebras.ai",
     maxTokens: 2048,
     jobMaxTokens: 4096,
-    note: "Free tier, no card. Fast, with a daily token allowance.",
+    note: "Free, no card. Daily limit.",
   },
   {
     id: "mistral",
@@ -107,7 +107,7 @@ export const CLOUD_PRESETS: CloudPreset[] = [
     keysUrl: "https://console.mistral.ai/api-keys",
     maxTokens: 4096,
     jobMaxTokens: 8192,
-    note: "Free experimentation tier, no card.",
+    note: "Free, no card.",
   },
 ];
 

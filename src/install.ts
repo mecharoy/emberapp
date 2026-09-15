@@ -6,6 +6,7 @@
 // by a restored backup file or by Android's own backup, and its API key
 // didn't come along, so Ember asks for it on a "Welcome back" screen.
 
+import { invoke } from "@tauri-apps/api/core";
 import { getSetting, setSetting } from "./db/settings";
 import { getApiKey, getCloudApiKey, getLocalInstallId, setLocalInstallId } from "./secrets";
 
@@ -50,7 +51,12 @@ export async function firstRunScreen(): Promise<FirstRunScreen> {
     // Can't tell installs apart without the private store; don't nag.
     return onboarded === "1" ? "none" : "setup";
   }
-  const key = provider === "anthropic" ? await getApiKey() : await getCloudApiKey();
+  const key =
+    provider === "pc"
+      ? await invoke<unknown>("lan_link").catch(() => null)
+      : provider === "anthropic"
+        ? await getApiKey()
+        : await getCloudApiKey();
   const screen = decideFirstRun({ onboarded: onboarded === "1", journalId, localId, hasKey: Boolean(key) });
   if (screen !== "welcome-back") await claimJournal().catch(() => {});
   return screen;

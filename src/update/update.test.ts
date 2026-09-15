@@ -60,6 +60,21 @@ describe("parseManifest", () => {
     expect(mac.notes).toBe("Wellbeing checks");
   });
 
+  it("prefers a platform's own version when the release bundles more than one app", () => {
+    const shared = {
+      ...manifest,
+      version: "1.1.0",
+      platforms: {
+        "android-aarch64": { url: "https://github.com/owner/ember/releases/download/v1.1.0/Ember-1.1.0-arm64.apk", version: "1.1.0" },
+        "windows-x86_64": { url: "https://github.com/owner/ember/releases/download/v1.1.0/Ember_0.1.0_x64-setup.exe", version: "0.1.0" },
+      },
+    };
+    expect(parseManifest(shared, source, "windows-x86_64")?.version).toBe("0.1.0");
+    expect(parseManifest(shared, source, "android-aarch64")?.version).toBe("1.1.0");
+    // The release page always points at the shared tag, whichever platform asks.
+    expect(parseManifest(shared, source, "windows-x86_64")?.releasePage).toBe("https://github.com/owner/ember/releases/tag/v1.1.0");
+  });
+
   it("never hands over a link outside GitHub", () => {
     const evil = { ...manifest, platforms: { "windows-x86_64": { url: "https://evil.example/Ember.exe" } } };
     expect(parseManifest(evil, source, "windows-x86_64")?.downloadUrl).toBe(

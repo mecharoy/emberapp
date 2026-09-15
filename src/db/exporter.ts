@@ -1,6 +1,7 @@
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { getDb } from "./client";
+import { recordLocalReset } from "./sync";
 import type {
   Assessment,
   Capture,
@@ -159,10 +160,14 @@ export async function deleteEverything(): Promise<void> {
     "checkins",
     "habit_prefs",
     "sessions",
-    "settings",
+    "reminders",
   ]) {
     await db.execute(`DELETE FROM ${table}`);
   }
+  // Everything but the computer's phone sync switch, so pairing keeps working.
+  await db.execute("DELETE FROM settings WHERE key <> 'lan_enabled'");
+  // A paired device resets too at its next sync (db/sync.ts).
+  await recordLocalReset();
   // DELETE only marks pages free — the journal text would still sit inside
   // ember.db until overwritten. VACUUM rewrites the file so "delete
   // everything" actually erases.

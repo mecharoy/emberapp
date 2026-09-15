@@ -20,6 +20,8 @@ import { androidBridge } from "../androidBridge";
 import { ensureNotificationPermission } from "../scheduler";
 import { backupCopySupported, backupNow } from "../backup";
 import RestoreBackup from "../components/RestoreBackup";
+import ComputerLinkSettings from "../components/ComputerLinkSettings";
+import { getProvider } from "../ai/factory";
 
 type FormState = Record<SettingKey, string>;
 
@@ -66,7 +68,7 @@ export default function Settings() {
     getAllSettings().then((s) => {
       // A provider the phone doesn't have (copied settings, an old default)
       // shows as the free hosted one, which is what the chat will use.
-      setForm(s.provider === "anthropic" || s.provider === "cloud" ? s : { ...s, provider: "cloud" });
+      setForm(s.provider === "anthropic" || s.provider === "cloud" || s.provider === "pc" ? s : { ...s, provider: "cloud" });
     });
     getApiKey().then(setApiKeyState).catch(() => {});
     getCloudApiKey().then(setCloudKeyState).catch(() => {});
@@ -182,7 +184,9 @@ export default function Settings() {
     setTestState({ status: "testing" });
     try {
       const provider =
-        form?.provider === "anthropic"
+        form?.provider === "pc"
+          ? await getProvider() // saved just above
+          : form?.provider === "anthropic"
           ? createAnthropicProvider({
               apiKey,
               model: form?.model || "claude-sonnet-5",
@@ -220,7 +224,7 @@ export default function Settings() {
   const testButton = (disabled: boolean) => (
     <div className="flex flex-col gap-2">
       <button onClick={handleTestConnection} disabled={testState.status === "testing" || disabled} className="btn-subtle self-start">
-        {testState.status === "testing" ? "Testing…" : "Test the connection"}
+        {testState.status === "testing" ? "Testing…" : "Test connection"}
       </button>
       {testState.status === "ok" && <span className="text-[13.5px] text-moss">Connected.</span>}
       {testState.status === "error" && <span className="text-[13.5px] text-danger">{testState.message}</span>}
@@ -236,8 +240,9 @@ export default function Settings() {
       <Section title="AI provider">
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Provider">
           {[
-            { id: "cloud", name: "Free hosted model", blurb: "Groq, Gemini, OpenRouter…" },
-            { id: "anthropic", name: "Anthropic", blurb: "Claude, pay as you go" },
+            { id: "cloud", name: "Free hosted model", blurb: "Groq, Gemini, OpenRouter" },
+            { id: "anthropic", name: "Anthropic API", blurb: "Pay as you go" },
+            { id: "pc", name: "Computer", blurb: "Local model on your paired computer" },
           ].map((p) => (
             <button
               key={p.id}
@@ -277,7 +282,7 @@ export default function Settings() {
               </select>
               {selectedPreset && (
                 <span className="hint">
-                  {selectedPreset.note} Get a key at <KeyLink url={selectedPreset.keysUrl} />.
+                  {selectedPreset.note}
                 </span>
               )}
             </Field>
@@ -292,12 +297,13 @@ export default function Settings() {
                   setCloudKeyState(e.target.value);
                   setDirty(true);
                 }}
-                placeholder="Paste the key from the provider's site"
+                placeholder="Paste your key"
               />
-              <span className="hint">
-                Kept in Ember&rsquo;s private storage on this phone, never in the journal database. Free tiers are
-                rate-limited, and some providers may use free requests to train on.
-              </span>
+              {selectedPreset && (
+                <span className="hint">
+                  Get one at <KeyLink url={selectedPreset.keysUrl} />.
+                </span>
+              )}
             </Field>
 
             <Field label="Model">
@@ -326,11 +332,9 @@ export default function Settings() {
                     onChange={(e) => update("cloud_api_base", e.target.value)}
                     placeholder="https://api.groq.com/openai/v1/chat/completions"
                   />
-                  <span className="hint">
-                    Must be one of the services above &mdash; Ember&rsquo;s network policy blocks every other host.
-                  </span>
+                  <span className="hint">Only the services listed above are allowed.</span>
                 </Field>
-                <Field label="Longest reply (tokens)">
+                <Field label="Max reply length (tokens)">
                   <input
                     className="input"
                     inputMode="numeric"
@@ -338,10 +342,7 @@ export default function Settings() {
                     onChange={(e) => update("cloud_max_tokens", e.target.value.replace(/[^0-9]/g, ""))}
                     placeholder={String(selectedPreset?.maxTokens ?? 900)}
                   />
-                  <span className="hint">
-                    Free tiers cap how much a model may write per minute and refuse a request that asks for more, so
-                    this stays low. Raising it can make weekly reviews read better &mdash; and can make every reply fail.
-                  </span>
+                  <span className="hint">Free tiers reject replies over their limit. Raise with care.</span>
                 </Field>
               </div>
             </details>
@@ -350,9 +351,19 @@ export default function Settings() {
           </>
         )}
 
+        {form.provider === "pc" && (
+          <>
+            <p className="hint">
+              Uses the local model on your paired computer. Both must be on the same network. Weekly and monthly reviews are
+              written on the computer.
+            </p>
+            {testButton(false)}
+          </>
+        )}
+
         {form.provider === "anthropic" && (
           <>
-            <Field label="Anthropic API key">
+            <Field label="API key">
               <input
                 type="password"
                 autoComplete="off"
@@ -365,8 +376,7 @@ export default function Settings() {
                 placeholder="sk-ant-..."
               />
               <span className="hint">
-                Get a key at <KeyLink url={ANTHROPIC_KEYS_URL} />. Kept in Ember&rsquo;s private storage on this phone, never in the journal
-                database.
+                Get one at <KeyLink url={ANTHROPIC_KEYS_URL} />.
               </span>
             </Field>
             <Field label="Model">
@@ -384,28 +394,29 @@ export default function Settings() {
         )}
       </Section>
 
+      <Section title="Sync with computer">
+        <ComputerLinkSettings />
+      </Section>
+
       <Section title="You">
         <Field label="Your name">
-          <input className="input" value={form.user_name} onChange={(e) => update("user_name", e.target.value)} placeholder="What should Ember call you?" />
+          <input className="input" value={form.user_name} onChange={(e) => update("user_name", e.target.value)} placeholder="Your name" />
         </Field>
         <Field label="Evening reminder">
           <input type="time" className="input w-40" value={form.reminder_time} onChange={(e) => update("reminder_time", e.target.value)} />
-          <span className="hint">A notification at this time on evenings you haven&rsquo;t written yet.</span>
+          <span className="hint">Skipped once today&rsquo;s entry is written.</span>
         </Field>
         <Field label="Journal voice">
           <select className="input" value={form.voice} onChange={(e) => update("voice", e.target.value)}>
-            <option value="first">First person (&ldquo;I had a rough day...&rdquo;)</option>
-            <option value="second">Second person (&ldquo;You had a rough day...&rdquo;)</option>
+            <option value="first">First person (&ldquo;I&hellip;&rdquo;)</option>
+            <option value="second">Second person (&ldquo;You&hellip;&rdquo;)</option>
           </select>
         </Field>
         {drawerNote !== null && (
           <label className="flex items-center justify-between gap-4">
             <span className="label">
-              Quick note in the notification drawer
-              <span className="hint mt-0.5 block">
-                Pull down and type a note without opening Ember. There is also an &ldquo;Ember note&rdquo; tile to add to
-                Quick Settings.
-              </span>
+              Quick note in notifications
+              <span className="hint mt-0.5 block">Also available as a Quick Settings tile.</span>
             </span>
             <input
               type="checkbox"
@@ -421,9 +432,8 @@ export default function Settings() {
           </label>
         )}
         <div className="flex flex-col gap-2">
-          <span className="label">Paper for new entries</span>
+          <span className="label">Default paper</span>
           <PaperPicker value={paperById(form.journal_paper).id} onChange={(id) => update("journal_paper", id)} />
-          <span className="hint">Any entry can have its own paper too: pick one above the page.</span>
         </div>
       </Section>
 
@@ -434,8 +444,8 @@ export default function Settings() {
             value={form.chat_length_preference === "quick" ? "quick" : "standard"}
             onChange={(e) => update("chat_length_preference", e.target.value)}
           >
-            <option value="standard">Standard (about 8 to 10 exchanges)</option>
-            <option value="quick">Brief (3 or 4 exchanges)</option>
+            <option value="standard">Standard (8–10 exchanges)</option>
+            <option value="quick">Brief (3–4 exchanges)</option>
           </select>
         </Field>
         <StylePicker
@@ -446,20 +456,13 @@ export default function Settings() {
         />
       </Section>
 
-      <Section title="Your documents" note="Changes here apply straight away, no need to save.">
-        <p className="hint">
-          Add .md or .txt files you want Ember to know about: notes on you, your goals, what you&rsquo;re working
-          through. Ticked files go into every evening conversation. Ember keeps its own copy, so add a file again after
-          you edit it. Removing one here never touches the original.
-        </p>
+      <Section title="Documents">
+        <p className="hint">Ticked .md or .txt files are read in every evening conversation. Add a file again after editing it.</p>
         <DocumentsManager />
       </Section>
 
       <Section title="Wellbeing questionnaires">
-        <p className="hint">
-          Standard questionnaires doctors use for screening, offered every two weeks at the evening check-in. Your
-          answers stay on this phone; only totals go into Ember&rsquo;s reviews. A score is not a diagnosis.
-        </p>
+        <p className="hint">Offered every two weeks at the check-in. A score is not a diagnosis.</p>
         <div className="flex flex-col gap-3">
           {INSTRUMENT_ORDER.map((id) => (
             <label key={id} className="flex items-start gap-3 text-[15px] text-ink">
@@ -479,7 +482,7 @@ export default function Settings() {
       </Section>
 
       <Section title="Insights">
-        <p className="hint">Hide any section of the Insights page. Nothing is deleted, and you can bring it back any time.</p>
+        <p className="hint">Sections shown on the Insights page.</p>
         <div className="grid grid-cols-1 gap-y-3 min-[380px]:grid-cols-2 min-[380px]:gap-x-3">
           {INSIGHT_MODULES.map((m) => (
             <label key={m.id} className="flex items-center gap-3 text-[14.5px] text-ink">
@@ -491,7 +494,6 @@ export default function Settings() {
       </Section>
 
       <Section title="Ember's instructions">
-        <p className="hint">What Ember is asked to do with your words, in short.</p>
         <PromptViewer style={style} />
       </Section>
 
@@ -504,17 +506,9 @@ export default function Settings() {
         />
       </Section>
 
-      <Section title="Your data">
-        <p className="hint">
-          Everything lives in one database on this phone. No tracking, no accounts, no sync. Your words do go to the
-          AI provider you chose. Ember helps you reflect; it is not therapy. If you&rsquo;re ever in crisis, please
-          reach out to someone you trust or to local emergency services.
-        </p>
+      <Section title="Data">
         <div className="flex flex-col gap-2.5">
-          <p className="hint">
-            Your journal is part of the phone&rsquo;s own backup (your Google account), so it comes back if you install
-            Ember again. API keys are left out; you&rsquo;ll paste them again.
-          </p>
+          <p className="hint">Included in your phone&rsquo;s Google backup, without API keys.</p>
           {backupCopySupported() && (
             <label className="flex items-start gap-3 text-[14.5px] text-ink">
               <input
@@ -524,11 +518,10 @@ export default function Settings() {
                 onChange={(e) => update("backup_copy", e.target.checked ? "1" : "")}
               />
               <span>
-                Keep a daily copy in Documents/Ember
-                <span className="hint block">
-                  It stays on the phone if Ember is removed. Other apps with access to your files can read it.
-                  {form.backup_last_at && ` Last copy: ${new Date(form.backup_last_at).toLocaleString()}.`}
-                </span>
+                Daily backup to Documents/Ember
+                {form.backup_last_at && (
+                  <span className="hint block">Last backup: {new Date(form.backup_last_at).toLocaleString()}</span>
+                )}
               </span>
             </label>
           )}
@@ -540,20 +533,20 @@ export default function Settings() {
             )}
           </div>
           <RestoreBackup
-            label="Restore a backup"
+            label="Restore backup"
             buttonClass="btn-subtle self-start"
-            warning="Restoring replaces everything Ember has now, and Ember restarts."
+            warning="This replaces all current data. Ember restarts."
           />
           {backupState.status === "done" && <p className="text-[13.5px] text-moss">Saved to Documents/Ember.</p>}
           {backupState.status === "error" && <p className="text-[13.5px] text-danger">{backupState.message}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <button onClick={handleExport} disabled={exportState.status === "working"} className="btn-subtle">
-            {exportState.status === "working" ? "Exporting…" : "Export everything"}
+            {exportState.status === "working" ? "Exporting…" : "Export"}
           </button>
           {!showDelete && (
             <button onClick={() => setShowDelete(true)} className="btn-danger">
-              Full reset
+              Reset Ember
             </button>
           )}
         </div>
@@ -571,9 +564,8 @@ export default function Settings() {
         {showDelete && (
           <div className="fade-up flex flex-col gap-3 rounded-xl bg-danger-wash px-4 py-3.5">
             <p className="text-[13.5px] leading-relaxed text-danger">
-              This erases every entry, note, conversation, insight and setting on this phone, removes the API keys, and
-              takes Ember back to its first-run screen. It can&rsquo;t be undone, so export first if you want a copy.
-              Type <b>delete</b> to confirm.
+              Erases all entries, notes, conversations, settings and API keys. A paired computer is reset at the next
+              sync; notes it hasn&rsquo;t synced yet are kept. This can&rsquo;t be undone. Type <b>delete</b> to confirm.
             </p>
             <input
               className="input"
@@ -588,7 +580,7 @@ export default function Settings() {
                 disabled={deleteConfirm !== "delete"}
                 className="min-h-[42px] rounded-lg bg-danger px-4 py-2 text-[14px] font-medium text-paper transition-opacity disabled:opacity-40"
               >
-                Erase everything
+                Erase
               </button>
               <button
                 onClick={() => {
@@ -607,10 +599,10 @@ export default function Settings() {
       {/* Stays in reach at the bottom of the screen however far down you are. */}
       <div className="sticky bottom-0 mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-rule bg-paper/95 px-5 py-3">
         <button onClick={handleSave} className="btn-primary">
-          Save settings
+          Save
         </button>
         {savedAt && !dirty && <span className="fade-up text-[13px] text-ink-faint">Saved</span>}
-        {dirty && <span className="flex-1 text-[12.5px] leading-snug text-ember">Not saved yet &mdash; Ember still uses the saved settings.</span>}
+        {dirty && <span className="flex-1 text-[12.5px] leading-snug text-ember">Unsaved changes</span>}
       </div>
     </div>
   );

@@ -18,12 +18,17 @@ const PROVIDERS = [
   {
     id: "cloud",
     name: "Free hosted model",
-    blurb: "Groq, Gemini or OpenRouter on their free tier. Needs a free key, no card.",
+    blurb: "Groq, Gemini or OpenRouter. Needs a free key.",
   },
   {
     id: "anthropic",
-    name: "Anthropic API key",
-    blurb: "Claude, pay as you go with a key from Anthropic. A few cents a day.",
+    name: "Anthropic API",
+    blurb: "Claude, pay as you go. Needs a key.",
+  },
+  {
+    id: "pc",
+    name: "Computer",
+    blurb: "The local model on a computer running Ember.",
   },
 ] as const;
 
@@ -216,7 +221,7 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
       const restoredPreset = presetForBaseUrl(s.cloud_api_base) ?? CLOUD_PRESETS[0];
       setName(s.user_name);
       setTime(s.reminder_time);
-      setProvider(s.provider === "anthropic" ? "anthropic" : "cloud");
+      setProvider(s.provider === "anthropic" || s.provider === "pc" ? s.provider : "cloud");
       setPresetId(restoredPreset.id);
       setRestored({ provider: s.provider, presetId: restoredPreset.id });
     });
@@ -243,7 +248,9 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
                     setSetting("cloud_max_tokens", String(preset.maxTokens)),
                   ]),
             ]
-          : [setApiKey(key.trim()), ...(sameService ? [] : [setSetting("model", "claude-sonnet-5")])]),
+          : provider === "pc"
+            ? []
+            : [setApiKey(key.trim()), ...(sameService ? [] : [setSetting("model", "claude-sonnet-5")])]),
       ]);
     }
     await claimJournal();
@@ -273,7 +280,9 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
             setSetting("cloud_max_tokens", String(preset.maxTokens)),
             setCloudApiKey(key.trim()),
           ]
-        : [setSetting("model", "claude-sonnet-5"), setApiKey(key.trim())]),
+        : provider === "pc"
+          ? []
+          : [setSetting("model", "claude-sonnet-5"), setApiKey(key.trim())]),
     ]);
     setSaving(false);
     setStep("questions");
@@ -474,11 +483,18 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
                   ))}
                 </select>
                 <span className="hint">
-                  Get a free key at <KeyLink url={preset.keysUrl} />.
+                  Get a key at <KeyLink url={preset.keysUrl} />.
                 </span>
               </label>
             )}
 
+            {provider === "pc" && (
+              <p className="hint mt-1">
+                Pair later in Settings &rsaquo; Sync with computer.
+              </p>
+            )}
+
+            {provider !== "pc" && (
             <label className="mt-1 flex flex-col gap-1.5">
               <span className="label">API key</span>
               <input
@@ -495,9 +511,10 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
                     Get a key at <KeyLink url={ANTHROPIC_KEYS_URL} />.{" "}
                   </>
                 )}
-                Stays in Ember&rsquo;s private storage on this phone. You can also add it later in Settings.
+                You can also add it later in Settings.
               </span>
             </label>
+            )}
           </div>
         </div>
 
