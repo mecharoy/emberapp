@@ -1,6 +1,6 @@
 [package]
 name = "ember-mobile"
-version = "1.5.0"
+version = "1.5.1"
 description = "Ember for Android - a journal that writes itself"
 authors = ["Ember"]
 edition = "2021"

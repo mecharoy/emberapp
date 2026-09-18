@@ -256,8 +256,8 @@ export default function Insights({
     }
   }
 
-  async function handleTrackSuggestion(s: Suggestion, name: string) {
-    await addTrackedHabit(name, today);
+  async function handleTrackSuggestion(s: Suggestion, name: string, description: string) {
+    await addTrackedHabit(name, today, description.trim());
     if (s.kind === "cut back") await setHabitDirection(name, "less");
     await refresh();
   }

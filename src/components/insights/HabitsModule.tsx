@@ -216,6 +216,7 @@ export default function HabitsModule({
                     </div>
                   </div>
                 </div>
+                {obs.detail && <p className="max-w-xs text-[12.5px] leading-snug text-ink-faint">{obs.detail}</p>}
                 <MonthHeatMap cells={cells} less={less} />
               </div>
 

@@ -65,7 +65,7 @@ export async function listTopObservations(todayKey: string, limit = 15): Promise
 /** Pins a habit spotted in the entries. The observations table is only
  *  rebuilt after an extraction, so when it hasn't caught up with the day
  *  metrics yet, it is rebuilt first. */
-export async function pinHabit(key: string): Promise<void> {
+export async function pinHabit(key: string, detail?: string): Promise<void> {
   const db = await getDb();
   const find = async () =>
     (await listObservations("habit")).find((o) => canonicalKey(o.key) === canonicalKey(key));
@@ -76,21 +76,25 @@ export async function pinHabit(key: string): Promise<void> {
   }
   if (!obs) throw new Error(`No habit called "${key}" in your entries.`);
   await db.execute("UPDATE observations SET pinned = 1 WHERE id = $1", [obs.id]);
+  if (detail && !obs.detail) {
+    await db.execute("UPDATE observations SET detail = $1 WHERE id = $2", [detail, obs.id]);
+  }
 }
 
 /** Starts tracking a habit by name, whether or not it has come up in an
- *  entry yet (a suggestion they took up). */
-export async function addTrackedHabit(key: string, today: string): Promise<void> {
+ *  entry yet (a suggestion they took up). `detail` is the small description
+ *  shown alongside the habit, e.g. the fuller suggestion it came from. */
+export async function addTrackedHabit(key: string, today: string, detail?: string): Promise<void> {
   const name = key.trim();
   if (!name) return;
   try {
-    await pinHabit(name);
+    await pinHabit(name, detail);
   } catch {
     const db = await getDb();
     await db.execute(
       `INSERT INTO observations (kind, key, detail, sentiment, occurrences, first_seen, last_seen, pinned)
-       VALUES ('habit', $1, NULL, NULL, 0, $2, $2, 1)`,
-      [name, today],
+       VALUES ('habit', $1, $2, NULL, 0, $3, $3, 1)`,
+      [name, detail || null, today],
     );
   }
 }

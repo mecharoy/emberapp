@@ -35,8 +35,10 @@ function Face({ kind, t, color, faded }: { kind: Kind; t: number; color: string;
   // Mood: -1 frown … +1 grin. Energy keeps a mild mouth that opens up high.
   const curve = kind === "mood" ? (t - 0.45) * 2 : (t - 0.3) * 1.2;
   const mouth = `M22 ${mouthY - curve * 2} Q32 ${mouthY + curve * 9} 42 ${mouthY - curve * 2}`;
-  // Low mood lifts the inner ends of the brows (sad, not angry).
-  const browTilt = kind === "mood" ? (t - 0.5) * 6 : 0;
+  // Low mood lifts the inner ends of the brows (sad, not angry). Above
+  // neutral the tilt is clamped flat rather than flipping the other way,
+  // which pointed the inner ends down and read as a furrowed, evil grin.
+  const browTilt = kind === "mood" ? Math.min(0, (t - 0.5) * 6) : 0;
   const eyeOpen = kind === "energy" ? 0.4 + t * 4 : 3.2;
   return (
     <svg viewBox="0 0 64 64" className={`h-14 w-14 shrink-0 transition-opacity duration-200 ${faded ? "opacity-40" : ""}`} aria-hidden="true">
