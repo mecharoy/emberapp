@@ -9,10 +9,13 @@ export default function KeyedRows({
   items,
   showTrend,
   onOpen,
+  onExpand,
 }: {
   items: KeyedSeries[];
   showTrend: boolean;
   onOpen: (item: KeyedSeries) => void;
+  /** The small chart was tapped: show this one day by day. */
+  onExpand: (item: KeyedSeries) => void;
 }) {
   if (items.length === 0) {
     return <p className="hint">Nothing yet. Save a few more entries.</p>;
@@ -20,10 +23,10 @@ export default function KeyedRows({
   return (
     <ul className="-mx-2 flex flex-col">
       {items.map((t) => (
-        <li key={t.key}>
+        <li key={t.key} className="flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-paper-deep">
           <button
             onClick={() => onOpen(t)}
-            className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-paper-deep"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 text-left"
             title={`Open the ${t.count} entr${t.count === 1 ? "y" : "ies"} behind this`}
           >
             <span
@@ -42,6 +45,13 @@ export default function KeyedRows({
               </span>
             )}
             <span className="w-8 text-right text-[12px] tabular-nums text-ink-faint">{t.count}×</span>
+          </button>
+          <button
+            onClick={() => onExpand(t)}
+            className="shrink-0 rounded-md border border-transparent px-1.5 py-1 transition-colors hover:border-rule-strong active:bg-paper"
+            title="See it day by day"
+            aria-label={`${t.key}, day by day`}
+          >
             <Sparkline values={t.spark} width={96} height={28} />
           </button>
         </li>

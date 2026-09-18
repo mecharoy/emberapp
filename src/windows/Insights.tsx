@@ -44,12 +44,13 @@ import {
   parseDayRows,
   peopleStats,
   themeStats,
+  type KeyedSeries,
 } from "../insights/stats";
 import type { JournalFocus } from "./navigation";
 import { LockedModule } from "../components/insights/ModuleCard";
 import VitalsRow from "../components/insights/VitalsRow";
 import MoodEnergyChart from "../components/insights/MoodEnergyChart";
-import TopicsChart from "../components/insights/TopicsChart";
+import TopicMonthDialog from "../components/insights/TopicMonthDialog";
 import WeekRhythm from "../components/insights/WeekRhythm";
 import KeyedRows from "../components/insights/KeyedRows";
 import { ModuleCard } from "../components/insights/ModuleCard";
@@ -113,6 +114,8 @@ export default function Insights({
     message: null,
   });
   const [confirmReanalyse, setConfirmReanalyse] = useState(false);
+  // The theme or person opened day by day from its small chart.
+  const [expanded, setExpanded] = useState<{ group: "themes" | "people"; item: KeyedSeries } | null>(null);
   const today = localDateKey();
 
   async function refresh() {
@@ -358,15 +361,6 @@ export default function Insights({
         />
       )}
 
-      {/* B2. themes and people over time, drawn like the mood chart */}
-      {(() => {
-        const showThemes = !data.hidden.has("themes") && unlocks.themes;
-        const showPeople = !data.hidden.has("people") && unlocks.people;
-        return showThemes || showPeople ? (
-          <TopicsChart rows={rows} todayKey={today} showThemes={showThemes} showPeople={showPeople} />
-        ) : null;
-      })()}
-
       {/* C. week rhythm */}
       {data.hidden.has("rhythm") ? null : unlocks.weekRhythm ? (
         <WeekRhythm rows={rows} captureTimes={data.captureTimes} />
@@ -387,6 +381,7 @@ export default function Insights({
               items={themes.slice(0, 10)}
               showTrend
               onOpen={(t) => onOpenJournal({ label: `theme: ${t.key}`, dates: t.dates })}
+              onExpand={(t) => setExpanded({ group: "themes", item: t })}
             />
           </ModuleCard>
         ) : (
@@ -405,6 +400,7 @@ export default function Insights({
               items={people.slice(0, 10)}
               showTrend={false}
               onOpen={(p) => onOpenJournal({ label: `person: ${p.key}`, dates: p.dates })}
+              onExpand={(p) => setExpanded({ group: "people", item: p })}
             />
           </ModuleCard>
         ) : (
@@ -467,6 +463,26 @@ export default function Insights({
           teaser="Most people name three feelings. You probably have more."
           have={n}
           need={20}
+        />
+      )}
+
+      {expanded && (
+        <TopicMonthDialog
+          group={expanded.group}
+          name={expanded.item.key}
+          rows={rows}
+          todayKey={today}
+          entryDates={entryDateSet}
+          onOpenEntry={(date) => {
+            setExpanded(null);
+            openEntry(date);
+          }}
+          onOpenEntries={() => {
+            const { group, item } = expanded;
+            setExpanded(null);
+            onOpenJournal({ label: `${group === "themes" ? "theme" : "person"}: ${item.key}`, dates: item.dates });
+          }}
+          onClose={() => setExpanded(null)}
         />
       )}
 

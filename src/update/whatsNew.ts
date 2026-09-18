@@ -11,8 +11,8 @@ export interface Highlight {
 export const RELEASE_NOTES: Record<string, Highlight[]> = {
   "1.5.2": [
     {
-      title: "Themes and people over time",
-      text: "A new chart under Mood & energy shows how often each theme or person came up, week by week.",
+      title: "Themes and people, day by day",
+      text: "Tap the small chart beside a theme or person to see it day by day over a month, with your mood alongside.",
     },
     {
       title: "Activities and mood",

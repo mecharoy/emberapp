@@ -22,18 +22,13 @@ export const SCIENCE: Record<string, ModuleScience> = {
     basis: "Mood follows the week's structure, for example lifting on weekends when people have more say over their time.",
     source: "Ryan, Bernstein & Brown (2010), Journal of Social and Clinical Psychology",
   },
-  topics: {
-    read: "One line per theme or person: on how many days of each week it came up. Switch names on and off to compare them, and change how far back to look.",
-    basis: "Seeing how often something returns, week by week, shows what is building or easing, which a single day cannot.",
-    source: "Pennebaker & Beall (1986), Journal of Abnormal Psychology; Bolger, Davis & Rafaeli (2003), Annual Review of Psychology",
-  },
   themes: {
-    read: "What keeps coming up in your entries, and whether it is growing or fading. Tap one to read the days behind it.",
+    read: "What keeps coming up in your entries, and whether it is growing or fading. Tap a name to read the days behind it, or its small chart to see it day by day over a month.",
     basis: "Putting experiences into words and returning to them is how writing helps people make sense of them.",
     source: "Pennebaker & Beall (1986), Journal of Abnormal Psychology",
   },
   people: {
-    read: "Who appears in your days, most often first. No rankings, no scores.",
+    read: "Who appears in your days, most recent first. No rankings, no scores. Tap a name to read the days behind it, or its small chart to see it day by day over a month.",
     basis: "The quality of our relationships is one of the strongest predictors of wellbeing and even of health.",
     source: "Holt-Lunstad, Smith & Layton (2010), PLoS Medicine",
   },
@@ -94,7 +89,6 @@ export const SCIENCE: Record<string, ModuleScience> = {
 export const UNLOCK: Record<string, string> = {
   mood: "Opens after 5 journal entries.",
   rhythm: "Opens after 14 entries spread over at least 3 different weeks.",
-  topics: "Opens after 10 entries.",
   themes: "Opens after 10 entries.",
   people: "Opens after 10 entries.",
   habits: "Opens as soon as Ember spots a habit in one of your entries.",

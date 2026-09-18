@@ -10,20 +10,6 @@ export const SERIES = {
   energy: "#2f64a0",
 } as const;
 
-/** Lines in the themes & people chart, in the order the names are listed.
- *  Each name is also labelled in the chips above the chart, so colour never
- *  carries the identity alone. */
-export const TOPIC_COLORS = [
-  "#b3441a",
-  "#2f64a0",
-  "#3d7a4a",
-  "#7a4f9a",
-  "#a8791a",
-  "#2f8a8a",
-  "#8a5a3a",
-  "#5b6472",
-] as const;
-
 /** One-hue ember ramp for intensity (heat grid, histogram), low→high. */
 export const EMBER_RAMP = ["#d9957a", "#c46a42", "#b3441a", "#86310f"] as const;
 
