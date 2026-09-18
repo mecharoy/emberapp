@@ -14,11 +14,17 @@ import { formatJournalsSince, formatSummaryForPrompt } from "./fortnightly";
 import { formatCheckInForPrompt, formatDayParts, toCheckInSummary } from "./checkin";
 import { parseStyle } from "./prompts/style";
 import type { WeeklyReview } from "../db/types";
+import { listTopics } from "../db/topics";
+import { getAgenda } from "../db/agendas";
+import { formatTopicsForPrompt } from "./topics";
+import { formatAgendaForPreamble } from "./agenda";
 import {
   counselorSystemPrompt,
   counselorTurnPreamble,
   EMPTY_MEMORY_SUMMARY,
   EMPTY_PROFILE_SUMMARY,
+  type CounselorPromptLayers,
+  type LengthPreference,
 } from "./prompts/counselor";
 import { addDays, daysBetween } from "../insights/stats";
 import {
@@ -28,6 +34,12 @@ import {
   selectOpenThreads,
 } from "./memory";
 import { formatCaptureDaysForPrompt } from "../captureDays";
+import { contextBudget, conversationShares, estimateTokens, type ContextBudget } from "./budget";
+import { clip, pickRelevant } from "./relevance";
+import { formatMemoryFiles, memoryPool } from "./memoryFiles";
+import { listMemoryFiles } from "../db/memoryFiles";
+import { getConversationPrep } from "../db/agendas";
+import { counselorCompactPrompt, type CompactPromptLayers } from "./prompts/counselorCompact";
 
 export { EMPTY_PROFILE_SUMMARY };
 
@@ -69,14 +81,24 @@ export function letterForTonight(
  * prompt. See prompts/counselor.ts for the full reasoning.
  */
 export async function buildCounselorTurnPreamble(
-  opts: { exchangeCount?: number } = {},
+  opts: { exchangeCount?: number; date?: string } = {},
 ): Promise<string> {
-  const lengthSetting = await getSetting("chat_length_preference");
+  const [lengthSetting, approach, agenda] = await Promise.all([
+    getSetting("chat_length_preference"),
+    getSetting("conversation_approach"),
+    opts.date ? getAgenda(opts.date) : Promise.resolve(null),
+  ]);
   return counselorTurnPreamble({
     nowTime: nowTimeLine(),
     exchangeCount: opts.exchangeCount ?? 0,
-    lengthPreference: lengthSetting === "quick" ? "quick" : "standard",
+    lengthPreference: parseLength(lengthSetting),
+    // Friend mode has no checklist, even one left from switching style mid-day.
+    agenda: agenda && agenda.length > 0 && approach !== "friend" ? formatAgendaForPreamble(agenda) : undefined,
   });
+}
+
+export function parseLength(value: string): LengthPreference {
+  return value === "quick" || value === "long" ? value : "standard";
 }
 
 /**
@@ -96,6 +118,81 @@ export async function buildCounselorTurnPreamble(
  * from the Journal calendar, in which case the prompt says so (lookingBack).
  */
 export async function buildCounselorSystemPrompt(dayKey: string = localDateKey()): Promise<string> {
+  const budget = await contextBudget();
+  if (budget.mode === "compact") return counselorCompactPrompt(await gatherCompactLayers(dayKey, budget));
+  return counselorSystemPrompt(await gatherCounselorLayers(dayKey));
+}
+
+/**
+ * Today's own material, for small models: the check-in, the day in parts,
+ * today's notes (cut to fit), a fresh weekly letter and the gap since the last
+ * entry. `query` is the text memory lines are matched against.
+ */
+export async function gatherTodayMaterial(
+  dayKey: string,
+  budget: ContextBudget,
+): Promise<{ text: string; query: string; checkIn: string; dayParts: string; notes: string }> {
+  const realToday = localDateKey();
+  const [captures, checkInRow, latestReview, lastEntryDate, agendaPrep] = await Promise.all([
+    listUnjournaledCaptures(dayKey),
+    getCheckIn(dayKey),
+    latestWeeklyReview(),
+    latestEntryDateBefore(dayKey),
+    getConversationPrep(dayKey),
+  ]);
+  const checkInSummary = toCheckInSummary(checkInRow);
+  const checkIn = formatCheckInForPrompt(checkInSummary);
+  const dayParts = formatDayParts(checkInSummary, { lookingBack: dayKey < realToday });
+  const notes = clip(formatCaptureDaysForPrompt(captures, dayKey), Math.floor(budget.totalTokens * 0.12));
+  const letter = dayKey === realToday ? letterForTonight(latestReview, lastEntryDate, dayKey) : "(none)";
+  const gap = lastEntryDate ? daysBetween(lastEntryDate, dayKey) : null;
+  const text = `THE DAY: ${formatTodayLine(dayKey)}${gap && gap > 1 ? ` (${gap} days since their last entry)` : ""}
+
+THEIR CHECK-IN:
+${checkIn}
+
+THE DAY IN PARTS:
+${dayParts}
+
+TODAY'S NOTES:
+${notes}${letter !== "(none)" ? `\n\nTHIS WEEK'S LETTER FROM EMBER (mention it once):\n${clip(letter, 200)}` : ""}`;
+  const agendaText = (agendaPrep?.items ?? []).map((i) => i.text).join("\n");
+  return { text, query: [captures.map((c) => c.text).join("\n"), checkIn, agendaText].join("\n"), checkIn, dayParts, notes };
+}
+
+/** The layers of the compact prompt: the briefing from the preparation step
+ *  and the memory lines that match today, within the budget. */
+export async function gatherCompactLayers(dayKey: string, budget: ContextBudget): Promise<CompactPromptLayers> {
+  const realToday = localDateKey();
+  const [userNameSetting, toneSetting, approachSetting, prep, today] = await Promise.all([
+    getSetting("user_name"),
+    getSetting("conversation_tone"),
+    getSetting("conversation_approach"),
+    getConversationPrep(dayKey),
+    gatherTodayMaterial(dayKey, budget),
+  ]);
+  const base: CompactPromptLayers = {
+    userName: userNameSetting.trim(),
+    todayLine: formatTodayLine(dayKey),
+    lookingBack:
+      dayKey < realToday ? { realTodayLine: formatTodayLine(realToday), daysAgo: daysBetween(dayKey, realToday) } : undefined,
+    style: parseStyle(toneSetting, approachSetting),
+    briefing: prep?.briefing ?? "(none)",
+    checkIn: today.checkIn,
+    dayParts: today.dayParts,
+    notes: today.notes,
+    memory: "",
+  };
+  // Whatever the prompt doesn't use yet goes to memory lines.
+  const withoutMemory = estimateTokens(counselorCompactPrompt(base));
+  const shares = conversationShares(budget, withoutMemory);
+  const memoryTokens = Math.max(150, Math.min(shares.context, 900));
+  return { ...base, memory: pickRelevant(await memoryPool(dayKey), today.query, memoryTokens) };
+}
+
+/** Everything the counselor prompt is built from; also what the checklist
+ *  (ai/agenda.ts) is made from. */
+export async function gatherCounselorLayers(dayKey: string = localDateKey()): Promise<CounselorPromptLayers> {
   const today = dayKey;
   const realToday = localDateKey();
   const [
@@ -114,6 +211,8 @@ export async function buildCounselorSystemPrompt(dayKey: string = localDateKey()
     latestReview,
     entries,
     summaries,
+    topics,
+    memoryFiles,
   ] = await Promise.all([
     getSetting("user_name"),
     getSetting("conversation_tone"),
@@ -130,6 +229,8 @@ export async function buildCounselorSystemPrompt(dayKey: string = localDateKey()
     latestWeeklyReview(),
     listEntries(),
     listMemorySummaries(),
+    listTopics(),
+    listMemoryFiles(),
   ]);
 
   // Summary n-1 plus every entry since. For a past day, only the
@@ -142,7 +243,7 @@ export async function buildCounselorSystemPrompt(dayKey: string = localDateKey()
   const openThreads = selectOpenThreads(allObservations, today);
   const checkIn = toCheckInSummary(checkInRow);
 
-  return counselorSystemPrompt({
+  return {
     userName: userNameSetting.trim(),
     todayLine: formatTodayLine(today),
     profileSummary: profile?.trim() || EMPTY_PROFILE_SUMMARY,
@@ -164,5 +265,7 @@ export async function buildCounselorSystemPrompt(dayKey: string = localDateKey()
       today < realToday
         ? { realTodayLine: formatTodayLine(realToday), daysAgo: daysBetween(today, realToday) }
         : undefined,
-  });
+    topics: formatTopicsForPrompt(topics),
+    memoryFiles: formatMemoryFiles(memoryFiles),
+  };
 }

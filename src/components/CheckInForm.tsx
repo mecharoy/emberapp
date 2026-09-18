@@ -3,71 +3,33 @@ import { getCheckIn, saveCheckIn } from "../db/checkins";
 import { listObservations } from "../db/observations";
 import { listDismissedHabitKeys } from "../db/habitPrefs";
 import { localDateKey } from "../db/captures";
-import { toCheckInSummary } from "../ai/checkin";
+import { DAY_STRETCHES, sleepHoursFrom, toCheckInSummary } from "../ai/checkin";
 import { listAssessments } from "../db/assessments";
-import { getSetting, setSetting } from "../db/settings";
+import { getAllSettings, setSetting } from "../db/settings";
 import { dueInstruments, INSTRUMENTS, parseEnabledInstruments } from "../insights/assessments";
 import { addDays } from "../insights/stats";
 import type { Instrument } from "../db/types";
 import WellbeingCheck from "./WellbeingCheck";
+import FaceSlider from "./FaceSlider";
 
-const SCALE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
-function ScaleRow({
-  label,
-  ends,
-  value,
-  onChange,
-}: {
-  label: string;
-  ends: [string, string];
-  value: number | null;
-  onChange: (v: number | null) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <span className="label">{label}</span>
-      <div className="w-full">
-        <div className="grid grid-cols-10 gap-1" role="group" aria-label={label}>
-          {SCALE.map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => onChange(value === n ? null : n)}
-              aria-pressed={value === n}
-              className={`aspect-square w-full rounded-full border text-[13.5px] tabular-nums transition duration-200 ease-settle active:scale-90 ${
-                value === n
-                  ? "border-ember bg-ember text-paper"
-                  : "border-rule text-ink-soft"
-              }`}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-        <div className="mt-1 flex justify-between px-1 font-serif text-[12px] italic text-ink-faint">
-          <span>{ends[0]}</span>
-          <span>{ends[1]}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+const Optional = () => <span className="font-normal text-ink-faint"> (optional)</span>;
 
 /** One point in the day: a time, or "not yet" / "skipped". Picking one clears
  *  the other; tapping the active choice again clears it. */
 function DayPointRow({
   label,
   value,
+  usual,
   allowNotYet,
   onChange,
 }: {
   label: string;
   value: string;
+  usual: string;
   allowNotYet: boolean;
   onChange: (v: string) => void;
 }) {
-  const choice = (id: "not-yet" | "skipped", text: string) => (
+  const choice = (id: string, text: string) => (
     <button
       type="button"
       onClick={() => onChange(value === id ? "" : id)}
@@ -81,29 +43,42 @@ function DayPointRow({
   );
   const isTime = /^\d{2}:\d{2}$/.test(value);
   return (
-    <div className="flex flex-col gap-1 text-[12px] text-ink-faint">
-      <span>{label}</span>
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="time"
-          aria-label={`${label} time`}
-          className="input w-[9.5rem]"
-          value={isTime ? value : ""}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        {allowNotYet && choice("not-yet", "not yet")}
-        {choice("skipped", "skipped")}
-      </div>
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="w-14 shrink-0 text-[13.5px] text-ink">{label}</span>
+      <input
+        type="time"
+        aria-label={`${label} time`}
+        className="input w-[8.5rem]"
+        value={isTime ? value : ""}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {!value && /^\d{2}:\d{2}$/.test(usual) && choice(usual, `usual ${usual}`)}
+      {allowNotYet && choice("not-yet", "not yet")}
+      {choice("skipped", "skipped")}
     </div>
   );
 }
 
+/** What they did in one stretch of the day. */
+function StretchNote({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="ml-3 flex flex-col gap-1 border-l border-rule pl-4">
+      <span className="text-[12.5px] text-ink-faint">{label}</span>
+      <textarea
+        rows={1}
+        className="input min-h-[44px] resize-y py-2"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="What did you do?"
+      />
+    </label>
+  );
+}
+
 /**
- * The evening check-in: the plain daily questions — how you
- * feel, energy, sleep, pinned habits — answered in ten seconds before the
- * conversation, so the counselor can spend the conversation on what matters
- * instead of asking them. Every field is optional; the answers are the
- * user's own ratings and override anything the AI would infer.
+ * The check-in before a conversation: mood, energy, the day in stretches,
+ * last night's sleep, pinned habits. Every field is optional; the answers are
+ * the user's own and beat anything the AI would infer.
  */
 export default function CheckInForm({
   date,
@@ -119,7 +94,8 @@ export default function CheckInForm({
   const [loaded, setLoaded] = useState(false);
   const [mood, setMood] = useState<number | null>(null);
   const [energy, setEnergy] = useState<number | null>(null);
-  const [sleep, setSleep] = useState("");
+  // Kept from an older check-in that gave hours but no bed and wake times.
+  const [storedSleep, setStoredSleep] = useState<number | null>(null);
   const [feeling, setFeeling] = useState("");
   const [onMind, setOnMind] = useState("");
   const [pinned, setPinned] = useState<string[]>([]);
@@ -131,24 +107,33 @@ export default function CheckInForm({
   const [lunch, setLunch] = useState("");
   const [eveningBreak, setEveningBreak] = useState("");
   const [dinner, setDinner] = useState("");
+  const [dayNotes, setDayNotes] = useState<Record<string, string>>({});
+  const [usual, setUsual] = useState({ lunch: "", break: "", dinner: "" });
   // Questionnaires due today, and the ones being answered right now.
   const [due, setDue] = useState<Instrument[]>([]);
   const [answering, setAnswering] = useState<Instrument[] | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [existing, habitObs, dismissed, taken, enabledCsv, snoozedUntil] = await Promise.all([
+      const [existing, habitObs, dismissed, taken, settings] = await Promise.all([
         getCheckIn(date),
         listObservations("habit"),
         listDismissedHabitKeys(),
         listAssessments(),
-        getSetting("assessments_enabled"),
-        getSetting("assessments_snoozed_until"),
+        getAllSettings(),
       ]);
-      // Offered only for tonight: a questionnaire about "the last two weeks"
+      setUsual({ lunch: settings.usual_lunch, break: settings.usual_break, dinner: settings.usual_dinner });
+      // Offered only for today: a questionnaire about "the last two weeks"
       // means nothing when dated to a day being looked back on.
       if (date === localDateKey()) {
-        setDue(dueInstruments(parseEnabledInstruments(enabledCsv), taken, date, snoozedUntil));
+        setDue(
+          dueInstruments(
+            parseEnabledInstruments(settings.assessments_enabled),
+            taken,
+            date,
+            settings.assessments_snoozed_until,
+          ),
+        );
       }
       setPinned(
         habitObs.filter((o) => o.pinned === 1 && !dismissed.has(o.key.trim().toLowerCase())).map((o) => o.key),
@@ -157,7 +142,7 @@ export default function CheckInForm({
       if (s) {
         setMood(s.mood);
         setEnergy(s.energy);
-        setSleep(s.sleepHours === null ? "" : String(s.sleepHours));
+        setStoredSleep(s.sleepHours);
         setFeeling(s.feeling ?? "");
         setOnMind(s.onMind ?? "");
         setHabits(s.habits);
@@ -168,6 +153,7 @@ export default function CheckInForm({
         setLunch(s.lunch ?? "");
         setEveningBreak(s.eveningBreak ?? "");
         setDinner(s.dinner ?? "");
+        setDayNotes(s.dayNotes);
       }
       setLoaded(true);
     })();
@@ -182,25 +168,30 @@ export default function CheckInForm({
     });
   }
 
+  const minutes = Number.parseInt(latency, 10);
+  const latencyMin = Number.isFinite(minutes) && minutes >= 0 && minutes <= 600 ? minutes : null;
+  const hoursAsleep = sleepHoursFrom(bedtime || null, wakeTime || null, latencyMin);
+
   async function handleStart(e: React.FormEvent) {
     e.preventDefault();
-    const hours = Number.parseFloat(sleep);
-    const minutes = Number.parseInt(latency, 10);
+    const notes: Record<string, string> = {};
+    for (const [k, v] of Object.entries(dayNotes)) if (v.trim()) notes[k] = v.trim();
     await saveCheckIn({
       date,
       mood,
       energy,
-      sleepHours: Number.isFinite(hours) && hours >= 0 && hours <= 24 ? hours : null,
+      sleepHours: hoursAsleep ?? (bedtime || wakeTime ? null : storedSleep),
       feeling: feeling.trim() || null,
       onMind: onMind.trim() || null,
       habits,
       bedtime: bedtime || null,
       wakeTime: wakeTime || null,
-      sleepLatencyMin: Number.isFinite(minutes) && minutes >= 0 && minutes <= 600 ? minutes : null,
+      sleepLatencyMin: latencyMin,
       sleepQuality: quality,
       lunch: lunch || null,
       eveningBreak: eveningBreak || null,
       dinner: dinner || null,
+      dayNotes: notes,
     });
     onStart();
   }
@@ -232,22 +223,28 @@ export default function CheckInForm({
 
   const isToday = date === localDateKey();
   const weekday = new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "long" });
+  const stretchLabel = (i: number) => {
+    const s = DAY_STRETCHES[i];
+    return i === 3 ? "After dinner" : `${s.from[0].toUpperCase()}${s.from.slice(1)} → ${s.to}`;
+  };
+  const note = (i: number) => (
+    <StretchNote
+      label={stretchLabel(i)}
+      value={dayNotes[DAY_STRETCHES[i].key] ?? ""}
+      onChange={(v) => setDayNotes((prev) => ({ ...prev, [DAY_STRETCHES[i].key]: v }))}
+    />
+  );
+  // Nothing to write about a stretch that hasn't begun yet.
+  const reached = (point: string) => !(isToday && point === "not-yet");
 
   return (
-    <form onSubmit={handleStart} className="fade-up flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 pb-10 pt-5">
-      <div>
-        <h2 className="section-title">{isToday ? "Before we talk" : `Before we talk about ${weekday}`}</h2>
-        <p className="hint mt-1 max-w-md">
-          Ten seconds, and all of it optional. Ember uses your answers instead of guessing, and won&rsquo;t ask
-          them again.
-        </p>
-      </div>
+    <form onSubmit={handleStart} className="fade-up flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto px-5 pb-10 pt-5">
+      <h2 className="section-title">{isToday ? "Check-in" : `Check-in · ${weekday}`}</h2>
 
       {due.length > 0 && (
         <div className="flex max-w-xl flex-col gap-2 border-l-2 border-ember/60 pl-4">
           <p className="text-[13.5px] leading-relaxed text-ink">
-            Your fortnightly wellbeing check is due: {due.map((i) => INSTRUMENTS[i].name).join(" and ")}. About a
-            minute, and it shows how the last two weeks have really been.
+            Wellbeing check due: {due.map((i) => INSTRUMENTS[i].name).join(" and ")}. About a minute.
           </p>
           <div className="flex gap-2">
             <button type="button" onClick={() => setAnswering(due)} className="btn-subtle">
@@ -260,42 +257,50 @@ export default function CheckInForm({
         </div>
       )}
 
-      <ScaleRow
-        label={isToday ? "How are you feeling overall today?" : `How did you feel overall on ${weekday}?`}
-        ends={["rough", "great"]}
-        value={mood}
-        onChange={setMood}
-      />
-      <ScaleRow label="Energy" ends={["drained", "buzzing"]} value={energy} onChange={setEnergy} />
-
-      <div className="flex flex-col gap-2.5">
-        <div>
-          <span className="label">{isToday ? "Your day so far" : `Your ${weekday}`}</span>
-          <p className="hint mt-0.5">Ember walks through the day in the stretches between these.</p>
-        </div>
-        <DayPointRow label="Lunch" value={lunch} allowNotYet={isToday} onChange={setLunch} />
-        <DayPointRow label="Evening break" value={eveningBreak} allowNotYet={isToday} onChange={setEveningBreak} />
-        <DayPointRow label="Dinner" value={dinner} allowNotYet={isToday} onChange={setDinner} />
+      <div className="grid max-w-2xl grid-cols-1 gap-6 md:grid-cols-2">
+        <FaceSlider
+          kind="mood"
+          label={isToday ? "Mood (optional)" : `Mood on ${weekday} (optional)`}
+          value={mood}
+          onChange={setMood}
+        />
+        <FaceSlider kind="energy" label="Energy (optional)" value={energy} onChange={setEnergy} />
       </div>
 
-      <label className="flex max-w-xs flex-col gap-1.5">
-        <span className="label">{isToday ? "Hours slept last night" : "Hours slept the night before"}</span>
-        <input
-          type="number"
-          inputMode="decimal"
-          min={0}
-          max={24}
-          step={0.5}
-          className="input w-28"
-          value={sleep}
-          onChange={(e) => setSleep(e.target.value)}
-          placeholder="7"
-        />
+      <label className="flex max-w-md flex-col gap-1.5">
+        <span className="label">
+          In a word or two, how {isToday ? "do" : "did"} you feel?
+          <Optional />
+        </span>
+        <input className="input" value={feeling} onChange={(e) => setFeeling(e.target.value)} placeholder="drained, a bit hopeful" />
       </label>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex max-w-xl flex-col gap-2.5">
         <span className="label">
-          Sleep diary <span className="font-normal text-ink-faint">(optional)</span>
+          {isToday ? "Your day so far" : `Your ${weekday}`}
+          <Optional />
+        </span>
+        {note(0)}
+        <DayPointRow label="Lunch" value={lunch} usual={usual.lunch} allowNotYet={isToday} onChange={setLunch} />
+        {reached(lunch) && (
+          <>
+            {note(1)}
+            <DayPointRow label="Break" value={eveningBreak} usual={usual.break} allowNotYet={isToday} onChange={setEveningBreak} />
+            {reached(eveningBreak) && (
+              <>
+                {note(2)}
+                <DayPointRow label="Dinner" value={dinner} usual={usual.dinner} allowNotYet={isToday} onChange={setDinner} />
+                {reached(dinner) && note(3)}
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="flex max-w-xl flex-col gap-2">
+        <span className="label">
+          {isToday ? "Last night" : "The night before"}
+          <Optional />
         </span>
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1 text-[12px] text-ink-faint">
@@ -331,9 +336,7 @@ export default function CheckInForm({
                   aria-pressed={quality === n}
                   title={n === 1 ? "very poorly" : n === 5 ? "very well" : undefined}
                   className={`h-9 w-9 rounded-full border text-[13.5px] tabular-nums transition duration-200 ease-settle active:scale-90 ${
-                    quality === n
-                      ? "border-ember bg-ember text-paper"
-                      : "border-rule text-ink-soft"
+                    quality === n ? "border-ember bg-ember text-paper" : "border-rule text-ink-soft"
                   }`}
                 >
                   {n}
@@ -342,26 +345,23 @@ export default function CheckInForm({
             </div>
           </div>
         </div>
+        {hoursAsleep !== null && <p className="text-[12.5px] text-ink-faint">About {hoursAsleep} hours asleep.</p>}
       </div>
 
       <label className="flex max-w-md flex-col gap-1.5">
-        <span className="label">{isToday ? "In a word or two, how do you feel?" : "In a word or two, how did you feel?"}</span>
-        <input className="input" value={feeling} onChange={(e) => setFeeling(e.target.value)} placeholder="drained, a bit hopeful" />
-      </label>
-
-      <label className="flex max-w-md flex-col gap-1.5">
-        <span className="label">Anything on your mind before we start?</span>
-        <textarea
-          className="input min-h-[64px] resize-y"
-          value={onMind}
-          onChange={(e) => setOnMind(e.target.value)}
-          placeholder="Optional"
-        />
+        <span className="label">
+          Anything on your mind?
+          <Optional />
+        </span>
+        <textarea className="input min-h-[64px] resize-y" value={onMind} onChange={(e) => setOnMind(e.target.value)} />
       </label>
 
       {pinned.length > 0 && (
         <div className="flex flex-col gap-2">
-          <span className="label">{isToday ? "Habits today" : `Habits on ${weekday}`}</span>
+          <span className="label">
+            {isToday ? "Habits today" : `Habits on ${weekday}`}
+            <Optional />
+          </span>
           <ul className="flex flex-col gap-1.5">
             {pinned.map((key) => (
               <li key={key} className="flex items-center gap-3">
@@ -387,9 +387,9 @@ export default function CheckInForm({
         </div>
       )}
 
-      <div className="flex flex-col items-stretch gap-2 pt-1">
+      <div className="flex flex-col items-stretch gap-2 pt-1 md:max-w-md">
         <button type="submit" disabled={busy} className="btn-primary">
-          {busy ? "Starting…" : isToday ? "Start tonight's conversation" : `Start talking about ${weekday}`}
+          {busy ? "Starting…" : isToday ? "Start the conversation" : `Start talking about ${weekday}`}
         </button>
         <button type="button" onClick={onSkip} disabled={busy} className="btn-ghost">
           Skip the check-in

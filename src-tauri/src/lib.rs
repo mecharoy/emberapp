@@ -82,6 +82,18 @@ fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0012_sync_state.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 13,
+            description: "conversation checklist, topics and day notes",
+            sql: include_str!("../migrations/0013_checklist_topics.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 14,
+            description: "memory files, briefing and chat summary",
+            sql: include_str!("../migrations/0014_memory_files.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -97,7 +109,7 @@ fn migrations() -> Vec<Migration> {
 fn secret_path(app: &tauri::AppHandle, name: &str) -> Result<PathBuf, String> {
     // install_id isn't secret, but it must stay out of backups like the keys:
     // it tells this install apart from the one a restored journal came from.
-    if !matches!(name, "anthropic_api_key" | "cloud_api_key" | "install_id") {
+    if !matches!(name, "anthropic_api_key" | "cloud_api_key" | "openai_api_key" | "install_id") {
         return Err(format!("Unknown secret name: {name}"));
     }
     let dir = app

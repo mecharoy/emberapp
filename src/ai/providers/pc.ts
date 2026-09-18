@@ -2,13 +2,13 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { ProviderError } from "../types";
 import { linesFromEvents, type ChatEvent, type OllamaTransport } from "./ollama";
 
-// The model on the computer, reached through Ember there (lan_client.rs).
-// The computer picks the model and its context size; the phone sends the
-// conversation and gets Ollama's reply lines back.
+// The computer's AI, reached through Ember there (lan_client.rs): its local
+// model, or whatever provider it uses. The computer picks the model; the
+// phone sends the conversation and gets Ollama-style reply lines back.
 
 function statusError(status: number, detail: string | null): ProviderError {
   if (status === 409) {
-    return new ProviderError("The computer isn't using a local model.", "On the computer, choose Local model in Settings > AI provider.");
+    return new ProviderError("The computer's AI provider isn't set up.", "On the computer, check Settings > AI provider.");
   }
   if (status === 404) return new ProviderError("The computer's model isn't downloaded.", detail || undefined);
   if (status === 502) return new ProviderError("The computer couldn't reach Ollama.", "Check Settings > AI provider on the computer.");

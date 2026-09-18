@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { feelingWords, formatCheckInForPrompt, formatDayParts, toCheckInSummary } from "./checkin";
+import { feelingWords, formatCheckInForPrompt, formatDayParts, sleepHoursFrom, toCheckInSummary } from "./checkin";
 import type { CheckIn } from "../db/types";
 
 const row: CheckIn = {
@@ -19,7 +19,28 @@ const row: CheckIn = {
   lunch: null,
   evening_break: null,
   dinner: null,
+  day_notes: null,
 };
+
+function blankRow(): CheckIn {
+  return {
+    ...row,
+    mood: null,
+    energy: null,
+    sleep_hours: null,
+    feeling: null,
+    on_mind: null,
+    habits: "{}",
+  };
+}
+
+describe("sleepHoursFrom", () => {
+  it("counts across midnight and takes off the time to fall asleep", () => {
+    expect(sleepHoursFrom("23:30", "07:00", 30)).toBe(7);
+    expect(sleepHoursFrom("01:00", "08:15", null)).toBe(7.5);
+    expect(sleepHoursFrom("23:00", null, 10)).toBeNull();
+  });
+});
 
 describe("toCheckInSummary", () => {
   it("reads a filled-in row", () => {
@@ -37,7 +58,14 @@ describe("toCheckInSummary", () => {
       lunch: null,
       eveningBreak: null,
       dinner: null,
+      dayNotes: {},
     });
+  });
+
+  it("reads what they did in each stretch and keeps a row with only that", () => {
+    const s = toCheckInSummary({ ...blankRow(), day_notes: JSON.stringify({ morning: " lab work ", night: "", bogus: "x" }) });
+    expect(s?.dayNotes).toEqual({ morning: "lab work" });
+    expect(formatCheckInForPrompt(s)).toContain('- what they did, waking up → lunch, in their words: "lab work"');
   });
 
   it("reads lunch, evening break and dinner, and ignores anything else stored there", () => {

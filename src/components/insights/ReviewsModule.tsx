@@ -7,6 +7,9 @@ import { writeCurrentWeekReview } from "../../ai/review";
 import { FORMULATION_KEYS, parseFormulation, type FormulationKey } from "../../ai/monthly";
 import { FortnightSummarySchema, type FortnightSummary } from "../../ai/fortnightly";
 import type { MemorySummary } from "../../db/types";
+import TopicsList from "./TopicsList";
+import MemoryFilesEditor from "./MemoryFilesEditor";
+import type { Topic } from "../../db/types";
 import { ModuleCard } from "./ModuleCard";
 
 const P_LABELS: Record<FormulationKey, { title: string; plain: string }> = {
@@ -194,8 +197,8 @@ function ClaimCard({
   onOpen: (label: string, dates: string[]) => void;
 }) {
   return (
-    <div className={`flex-1 rounded-md p-4 ${tone === "warm" ? "bg-ember-wash/45" : "bg-paper-deep/70"}`}>
-      <h3 className={`font-serif text-[15px] italic ${tone === "warm" ? "text-ember-deep" : "text-ink-soft"}`}>{title}</h3>
+    <div className={`flex-1 rounded-md p-4 ${tone === "warm" ? "bg-moss-wash" : "bg-ember-wash/45"}`}>
+      <h3 className={`font-serif text-[15px] italic ${tone === "warm" ? "text-moss" : "text-ember-deep"}`}>{title}</h3>
       {claims.length === 0 ? (
         <p className="hint mt-1.5">Nothing with clear evidence this week, and that&rsquo;s fine.</p>
       ) : (
@@ -255,7 +258,13 @@ export default function ReviewsModule({
   entryDates,
   onOpen,
   onChanged,
+  topics,
+  onTopicStatus,
+  onTopicRemove,
 }: {
+  topics: Topic[];
+  onTopicStatus: (key: string, status: Topic["status"]) => void;
+  onTopicRemove: (key: string) => void;
   reviews: WeeklyReview[];
   monthly: MonthlyReport[];
   summaries: MemorySummary[];
@@ -359,7 +368,11 @@ export default function ReviewsModule({
           )}
         </>
       ) : tab === "memory" ? (
-        <MemoryTab summaries={summaries} onOpen={onOpen} />
+        <div className="flex flex-col gap-8">
+          <MemoryFilesEditor />
+          <TopicsList topics={topics} onStatus={onTopicStatus} onRemove={onTopicRemove} />
+          <MemoryTab summaries={summaries} onOpen={onOpen} />
+        </div>
       ) : monthly.length === 0 ? (
         <p className="hint max-w-xl">Your first monthly report lands when a month ends.</p>
       ) : (

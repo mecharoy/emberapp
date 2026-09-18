@@ -60,7 +60,7 @@ interface TableSpec {
   session?: "required" | "optional";
 }
 
-// Must match the tables and columns in 0011_sync.sql. Sessions come first so
+// Must match the tables and columns in 0011_sync.sql, 0013 and 0014. Sessions come first so
 // a batch creates them before anything that points at them.
 const TABLES: Record<string, TableSpec> = {
   sessions: { pk: ["uid"], cols: ["date", "started_at", "ended_at", "status"] },
@@ -83,9 +83,12 @@ const TABLES: Record<string, TableSpec> = {
     pk: ["date"],
     cols: [
       "mood", "energy", "sleep_hours", "feeling", "on_mind", "habits", "created_at", "updated_at",
-      "bedtime", "wake_time", "sleep_latency_min", "sleep_quality", "lunch", "evening_break", "dinner",
+      "bedtime", "wake_time", "sleep_latency_min", "sleep_quality", "lunch", "evening_break", "dinner", "day_notes",
     ],
   },
+  session_agendas: { pk: ["date"], cols: ["items", "created_at", "updated_at", "briefing", "chat_summary", "summary_upto"] },
+  memory_files: { pk: ["name"], cols: ["content", "user_edited", "updated_at"] },
+  topics: { pk: ["key"], cols: ["title", "status", "notes", "next_step", "first_seen", "last_discussed", "updated_at"] },
   habit_prefs: { pk: ["key"], cols: ["dismissed", "direction"] },
   assessments: { pk: ["instrument", "date"], cols: ["answers", "score", "difficulty", "created_at"] },
   settings: { pk: ["key"], cols: ["value"] },

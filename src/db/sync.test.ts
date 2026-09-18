@@ -170,6 +170,19 @@ describe("sync", () => {
     expect(all("pc", "SELECT COUNT(*) AS n FROM captures")).toEqual([{ n: 0 }]);
   });
 
+  it("carries the checklist, topics, day notes and writing style (migration 0013)", async () => {
+    run("pc", "INSERT INTO checkins (date, day_notes, created_at, updated_at) VALUES ('2026-09-06', '{\"morning\":\"lab\"}', 'x', 'x')");
+    run("pc", "INSERT INTO session_agendas (date, items, created_at, updated_at) VALUES ('2026-09-06', '[]', 'x', 'x')");
+    run("pc", "INSERT INTO topics (key, title, first_seen, updated_at) VALUES ('dad', 'Dispute with Dad', '2026-09-06', 'x')");
+    run("pc", "INSERT INTO settings (key, value) VALUES ('writing_style_sample', 'Short. Dry.'), ('provider', 'local')");
+    await syncRound();
+
+    expect(all("phone", "SELECT day_notes FROM checkins")).toEqual([{ day_notes: '{"morning":"lab"}' }]);
+    expect(all("phone", "SELECT date FROM session_agendas")).toEqual([{ date: "2026-09-06" }]);
+    expect(all("phone", "SELECT title FROM topics")).toEqual([{ title: "Dispute with Dad" }]);
+    expect(all("phone", "SELECT key FROM settings ORDER BY key")).toEqual([{ key: "writing_style_sample" }]);
+  });
+
   it("doesn't send changes back to the device they came from", async () => {
     run("pc", "INSERT INTO captures (created_at, text) VALUES ('2026-09-05T10:00:00', 'once')");
     await syncRound();

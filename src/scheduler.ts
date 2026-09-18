@@ -160,7 +160,22 @@ export function syncNotifications(): Promise<void> {
   return syncing;
 }
 
+/** The lunch, break and dinner reminders live on the Android side; they get
+ *  the times from Settings. Older builds of the bridge lack the method. */
+async function syncDayReminders(): Promise<void> {
+  const bridge = androidBridge();
+  if (!bridge?.setDayReminders) return;
+  const [enabled, lunch, breakTime, dinner] = await Promise.all([
+    getSetting("day_reminders"),
+    getSetting("usual_lunch"),
+    getSetting("usual_break"),
+    getSetting("usual_dinner"),
+  ]);
+  bridge.setDayReminders(JSON.stringify({ enabled: enabled === "1", lunch, break: breakTime, dinner }));
+}
+
 async function doSync(): Promise<void> {
+  await syncDayReminders().catch(() => {});
   if (!(await isPermissionGranted().catch(() => false))) return;
   const [state, reminders, scheduled] = await Promise.all([
     readReminderState(),

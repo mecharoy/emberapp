@@ -8,6 +8,7 @@ export const SETTINGS_DEFAULTS: Record<SettingKey, string> = {
   api_key: "",
   cloud_api_base: "https://api.groq.com/openai/v1/chat/completions",
   cloud_api_key: "",
+  openai_api_key: "",
   cloud_max_tokens: "",
   reminder_time: "21:30",
   hotkey: "CommandOrControl+Shift+J",
@@ -27,12 +28,20 @@ export const SETTINGS_DEFAULTS: Record<SettingKey, string> = {
   backup_last_at: "",
   install_id: "",
   jobs_last_error: "",
+  usual_lunch: "13:00",
+  usual_break: "17:30",
+  usual_dinner: "20:30",
+  day_reminders: "1",
+  writing_style_sample: "",
+  insight_patterns: "",
+  context_mode: "auto",
   assessments_enabled: "who5",
   assessments_snoozed_until: "",
   update_source: "",
   update_auto_check: "1",
   update_checked_at: "",
   update_dismissed_version: "",
+  last_seen_version: "",
 };
 
 export async function getSetting(key: SettingKey): Promise<string> {

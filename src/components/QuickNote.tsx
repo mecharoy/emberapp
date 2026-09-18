@@ -2,7 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { emit } from "@tauri-apps/api/event";
 import { countCapturesForDate, createCapture, localDateKey } from "../db/captures";
 
-const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
+const MOODS = [
+  { emoji: "😞", label: "down" },
+  { emoji: "😕", label: "uneasy" },
+  { emoji: "😐", label: "neutral" },
+  { emoji: "🙂", label: "good" },
+  { emoji: "😄", label: "great" },
+  { emoji: "😠", label: "angry" },
+  { emoji: "😵‍💫", label: "confused" },
+  { emoji: "😴", label: "sleepy" },
+];
 
 /**
  * The phone's quick capture (the desktop's Ctrl+Shift+J bar): a sheet that
@@ -60,15 +69,17 @@ export default function QuickNote({ open, onClose }: { open: boolean; onClose: (
           placeholder="What's on your mind?"
           className="selectable block w-full resize-none bg-transparent font-serif text-[18px] leading-[1.5] text-ink outline-none placeholder:text-ink-faint/80 focus-visible:outline-none"
         />
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1" role="group" aria-label="Mood">
-            {MOODS.map((emoji) => (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-0.5" role="group" aria-label="Mood">
+            {MOODS.map(({ emoji, label }) => (
               <button
                 key={emoji}
                 type="button"
                 onClick={() => setMood((current) => (current === emoji ? null : emoji))}
                 aria-pressed={mood === emoji}
-                className={`flex h-10 w-10 items-center justify-center rounded-full text-[21px] leading-none transition duration-150 active:scale-90 ${
+                aria-label={label}
+                title={label}
+                className={`flex h-9 w-9 items-center justify-center rounded-full text-[20px] leading-none transition duration-150 active:scale-90 ${
                   mood === emoji ? "bg-paper-deep" : "opacity-45 grayscale"
                 }`}
               >

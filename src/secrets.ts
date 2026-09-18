@@ -8,6 +8,7 @@ import type { SettingKey } from "./db/types";
 
 const API_KEY_NAME = "anthropic_api_key";
 const CLOUD_KEY_NAME = "cloud_api_key";
+const OPENAI_KEY_NAME = "openai_api_key";
 
 /** Reads one credential, falling back to a settings-table copy on systems
  *  with no OS credential store (e.g. bare Linux without a secret service). */
@@ -62,6 +63,17 @@ export async function getCloudApiKey(): Promise<string> {
 /** Empty string deletes the credential. */
 export async function setCloudApiKey(value: string): Promise<void> {
   await writeSecret(CLOUD_KEY_NAME, "cloud_api_key", value);
+}
+
+/** Key for the OpenAI API (ChatGPT's models, pay as you go). */
+export async function getOpenAiKey(): Promise<string> {
+  const { value } = await readSecret(OPENAI_KEY_NAME, "openai_api_key");
+  return value;
+}
+
+/** Empty string deletes the credential. */
+export async function setOpenAiKey(value: string): Promise<void> {
+  await writeSecret(OPENAI_KEY_NAME, "openai_api_key", value);
 }
 
 /** This install's id, kept beside the keys so backups never carry it.

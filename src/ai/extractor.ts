@@ -22,6 +22,13 @@ import { listEntries } from "../db/entries";
 import { runReviewJobsAndNotify } from "./reviewJobs";
 import type { Entry, Message } from "../db/types";
 import type { AIProvider } from "./types";
+import { contextBudget, estimateTokens } from "./budget";
+import { clip } from "./relevance";
+import {
+  EXTRACT_DAY_SYSTEM_PROMPT,
+  EXTRACT_PERSON_SYSTEM_PROMPT,
+  buildExtractCompactPrompt,
+} from "./prompts/extractorCompact";
 
 const sentiment = z.number().min(-1).max(1);
 
@@ -143,6 +150,84 @@ export async function extractWithProvider(
   return { ok: false, error: lastError };
 }
 
+/** One part of the compact extraction: validated against the full schema's
+ *  fields for that part, retried once. */
+async function extractPart(
+  provider: AIProvider,
+  system: string,
+  prompt: string,
+  pick: (x: Record<string, unknown>) => Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  let lastError = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const text = attempt === 0 ? prompt : `${prompt}\n\nYour previous response could not be used: ${lastError}\nReturn ONLY the corrected JSON object.`;
+    try {
+      const raw = await provider.complete([{ role: "user", content: text }], system, { maxTokens: 700 });
+      const parsed = extractJson(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Not a JSON object.");
+      const part = cleanCompactPart(pick(parsed as Record<string, unknown>));
+      // The schema defaults fill what's missing; this checks what is there.
+      ExtractionSchema.parse(part);
+      return part;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+    }
+  }
+  throw new Error(lastError);
+}
+
+/** Drops list items a small model got wrong (a habit with "done": null, a
+ *  sentiment of "high") so one bad item doesn't fail the whole day, and
+ *  clamps numbers into range. Pure. */
+export function cleanCompactPart(x: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...x };
+  const list = (v: unknown) => (Array.isArray(v) ? v.filter((i) => i && typeof i === "object") : []);
+  const clamp = (n: unknown, lo: number, hi: number) => (typeof n === "number" && Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null);
+  const keyed = (v: unknown) => list(v).filter((i) => typeof (i as { key?: unknown }).key === "string" && (i as { key: string }).key.trim());
+  if ("themes" in x) out.themes = keyed(x.themes).map((t) => ({ ...t, sentiment: clamp((t as { sentiment?: unknown }).sentiment, -1, 1) ?? 0 }));
+  if ("people" in x) out.people = keyed(x.people).map((p) => ({ ...p, sentiment: clamp((p as { sentiment?: unknown }).sentiment, -1, 1) ?? 0 }));
+  if ("habits" in x) out.habits = keyed(x.habits).filter((h) => typeof (h as { done?: unknown }).done === "boolean");
+  if ("activities" in x) out.activities = keyed(x.activities);
+  for (const f of ["mood", "energy"]) if (f in x) out[f] = typeof x[f] === "number" ? clamp(Math.round(x[f] as number), 1, 10) : null;
+  for (const f of ["emotions", "emotions_named", "strengths_shown", "struggles_shown"]) {
+    if (f in x) out[f] = Array.isArray(x[f]) ? (x[f] as unknown[]).filter((w) => typeof w === "string" && w.trim()) : [];
+  }
+  return out;
+}
+
+/** The two parts as one extraction, with the feeling words held to what
+ *  they typed. Pure. */
+export function mergeCompactParts(day: Record<string, unknown>, person: Record<string, unknown>, typedText: string): Extraction {
+  const x = ExtractionSchema.parse({ ...cleanCompactPart(day), ...cleanCompactPart(person) });
+  const typed = typedText.toLowerCase();
+  const named = Array.from(new Set(x.emotions_named.flatMap((w) => feelingWords(w)))).filter((w) => typed.includes(w));
+  return { ...x, emotions_named: named };
+}
+
+const DAY_FIELDS = ["mood", "energy", "summary_line", "themes", "habits", "people", "sleep_hours", "rhythm"];
+const PERSON_FIELDS = ["emotions", "emotions_named", "strengths_shown", "struggles_shown", "activities"];
+const only = (fields: string[]) => (x: Record<string, unknown>) => Object.fromEntries(fields.filter((f) => f in x).map((f) => [f, x[f]]));
+
+/**
+ * Extraction for small models: two short jobs instead of one long one. The
+ * day's facts are required; if the second part fails, the day keeps them
+ * with the person fields empty rather than losing both.
+ */
+export async function extractCompact(provider: AIProvider, input: ExtractorPromptInput, totalTokens: number): Promise<ExtractionResult> {
+  const theirs = input.transcript.filter((m) => m.role === "user").map((m) => `- ${m.content}`).join("\n");
+  const withoutWords = estimateTokens(EXTRACT_DAY_SYSTEM_PROMPT) + estimateTokens(buildExtractCompactPrompt(input, ""));
+  const prompt = buildExtractCompactPrompt(input, clip(theirs, Math.max(300, totalTokens - withoutWords - 900)));
+  try {
+    const day = await extractPart(provider, EXTRACT_DAY_SYSTEM_PROMPT, prompt, only(DAY_FIELDS));
+    const person = await extractPart(provider, EXTRACT_PERSON_SYSTEM_PROMPT, prompt, only(PERSON_FIELDS)).catch(() => ({}));
+    // Small models put phrases in emotions_named ("tired, a bit tense"): only
+    // feeling words they actually typed are kept.
+    return { ok: true, extraction: mergeCompactParts(day, person, [theirs, input.checkIn ?? ""].join("\n")) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 // Dates being extracted right now. The Insights refresh skips them, so an
 // entry saved a moment ago isn't extracted twice in parallel.
 const inFlight = new Set<string>();
@@ -191,8 +276,11 @@ async function extractAndStoreDay(input: ExtractorPromptInput): Promise<Extracti
 
     let result: ExtractionResult;
     try {
-      const provider = await getProvider();
-      result = await extractWithProvider(provider, fullInput);
+      const [provider, budget] = await Promise.all([getProvider(), contextBudget()]);
+      result =
+        budget.mode === "compact"
+          ? await extractCompact(provider, fullInput, budget.totalTokens)
+          : await extractWithProvider(provider, fullInput);
     } catch (e) {
       result = { ok: false, error: e instanceof Error ? e.message : String(e) };
     }

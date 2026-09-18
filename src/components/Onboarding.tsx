@@ -6,7 +6,9 @@ import { getAllSettings, setSetting } from "../db/settings";
 import { CLOUD_PRESETS, presetForBaseUrl } from "../ai/providers/cloud";
 import { ANTHROPIC_KEYS_URL } from "../ai/providers/anthropic";
 import KeyLink from "./KeyLink";
-import { setApiKey, setCloudApiKey } from "../secrets";
+import { setApiKey, setCloudApiKey, setOpenAiKey } from "../secrets";
+import { PROVIDER_OPTIONS, isKnownProvider } from "../ai/providerList";
+import { DEFAULT_OPENAI_MODEL, OPENAI_KEYS_URL } from "../ai/providers/openai";
 import { ensureNotificationPermission } from "../scheduler";
 import { SCIENCE_HIGHLIGHTS } from "../insights/science";
 import { claimJournal } from "../install";
@@ -14,23 +16,7 @@ import RestoreBackup from "./RestoreBackup";
 import StylePicker from "./StylePicker";
 import { DEFAULT_STYLE, type ConversationStyle } from "../ai/prompts/style";
 
-const PROVIDERS = [
-  {
-    id: "cloud",
-    name: "Free hosted model",
-    blurb: "Groq, Gemini or OpenRouter. Needs a free key.",
-  },
-  {
-    id: "anthropic",
-    name: "Anthropic API",
-    blurb: "Claude, pay as you go. Needs a key.",
-  },
-  {
-    id: "pc",
-    name: "Computer",
-    blurb: "The local model on a computer running Ember.",
-  },
-] as const;
+const PROVIDERS = PROVIDER_OPTIONS;
 
 /** Getting-to-know-you questions (step 2). Each answer maps to a context
  * layer the counselor actually uses: routine, people, open threads, goals and
@@ -199,6 +185,7 @@ function IntroVideo({ scrollerRef, onSettled }: { scrollerRef: React.RefObject<H
 export default function Onboarding({ onDone, welcomeBack = false }: { onDone: () => void; welcomeBack?: boolean }) {
   const [name, setName] = useState("");
   const [time, setTime] = useState("21:30");
+  const [usual, setUsual] = useState({ lunch: "13:00", break: "17:30", dinner: "20:30" });
   const [provider, setProvider] = useState<string>("cloud");
   const [presetId, setPresetId] = useState(CLOUD_PRESETS[0].id);
   const [key, setKey] = useState("");
@@ -221,7 +208,8 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
       const restoredPreset = presetForBaseUrl(s.cloud_api_base) ?? CLOUD_PRESETS[0];
       setName(s.user_name);
       setTime(s.reminder_time);
-      setProvider(s.provider === "anthropic" || s.provider === "pc" ? s.provider : "cloud");
+      setUsual({ lunch: s.usual_lunch, break: s.usual_break, dinner: s.usual_dinner });
+      setProvider(isKnownProvider(s.provider) ? s.provider : "cloud");
       setPresetId(restoredPreset.id);
       setRestored({ provider: s.provider, presetId: restoredPreset.id });
     });
@@ -236,6 +224,9 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
       await Promise.all([
         setSetting("user_name", name.trim()),
         setSetting("reminder_time", time),
+        setSetting("usual_lunch", usual.lunch),
+        setSetting("usual_break", usual.break),
+        setSetting("usual_dinner", usual.dinner),
         setSetting("provider", provider),
         ...(provider === "cloud"
           ? [
@@ -250,7 +241,9 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
             ]
           : provider === "pc"
             ? []
-            : [setApiKey(key.trim()), ...(sameService ? [] : [setSetting("model", "claude-sonnet-5")])]),
+            : provider === "openai"
+              ? [setOpenAiKey(key.trim()), ...(sameService ? [] : [setSetting("model", DEFAULT_OPENAI_MODEL)])]
+              : [setApiKey(key.trim()), ...(sameService ? [] : [setSetting("model", "claude-sonnet-5")])]),
       ]);
     }
     await claimJournal();
@@ -272,6 +265,9 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
     await Promise.all([
       setSetting("user_name", name.trim()),
       setSetting("reminder_time", time),
+      setSetting("usual_lunch", usual.lunch),
+      setSetting("usual_break", usual.break),
+      setSetting("usual_dinner", usual.dinner),
       setSetting("provider", provider),
       ...(provider === "cloud"
         ? [
@@ -282,7 +278,9 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
           ]
         : provider === "pc"
           ? []
-          : [setSetting("model", "claude-sonnet-5"), setApiKey(key.trim())]),
+          : provider === "openai"
+            ? [setSetting("model", DEFAULT_OPENAI_MODEL), setOpenAiKey(key.trim())]
+            : [setSetting("model", "claude-sonnet-5"), setApiKey(key.trim())]),
     ]);
     setSaving(false);
     setStep("questions");
@@ -363,7 +361,7 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
             Help Ember get to know you{name.trim() ? `, ${name.trim()}` : ""}
           </h1>
           <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
-            How should Ember talk with you in the evenings? You can change this later in Settings.
+            How should Ember talk with you? You can change this later in Settings.
           </p>
 
           <div className="mt-6">
@@ -434,7 +432,7 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
               </li>
               <li className="flex gap-4">
                 <span className="w-3 font-serif text-[18px] italic text-ember">2</span>
-                <span>In the evening, Ember starts a short conversation about your day. You just answer.</span>
+                <span>Later in the day, Ember starts a short conversation about it. You just answer.</span>
               </li>
               <li className="flex gap-4">
                 <span className="w-3 font-serif text-[18px] italic text-ember">3</span>
@@ -451,26 +449,45 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
               <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
             </label>
             <label className="flex w-32 flex-col gap-1.5">
-              <span className="label">Reminder</span>
+              <span className="label">Daily reminder</span>
               <input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} />
             </label>
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <span className="label">When do you usually have these?</span>
+            <div className="grid grid-cols-3 gap-3">
+              {(
+                [
+                  ["lunch", "Lunch"],
+                  ["break", "A break"],
+                  ["dinner", "Dinner"],
+                ] as const
+              ).map(([k, label]) => (
+                <label key={k} className="flex flex-col gap-1 text-[12px] text-ink-faint">
+                  {label}
+                  <input
+                    type="time"
+                    className="input w-full"
+                    value={usual[k]}
+                    onChange={(e) => setUsual((u) => ({ ...u, [k]: e.target.value }))}
+                  />
+                </label>
+              ))}
+            </div>
+            <span className="hint">Ember reminds you at these times to jot down what you did. You can turn this off in Settings.</span>
+          </div>
+
           <div className="flex flex-col gap-2">
             <span className="label">AI provider</span>
-            {PROVIDERS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setProvider(p.id)}
-                aria-pressed={provider === p.id}
-                className={`rounded-xl border px-4 py-3 text-left transition-colors duration-200 ${
-                  provider === p.id ? "border-ember/50 bg-ember-wash/50" : "border-rule bg-sheet/50"
-                }`}
-              >
-                <span className="text-[15px] text-ink">{p.name}</span>
-                <span className="mt-0.5 block text-[13px] text-ink-faint">{p.blurb}</span>
-              </button>
-            ))}
+            <select className="input" value={provider} onChange={(e) => setProvider(e.target.value)} aria-label="AI provider">
+              {PROVIDERS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <span className="hint">{PROVIDERS.find((p) => p.id === provider)?.blurb}</span>
 
             {provider === "cloud" && (
               <label className="mt-1 flex flex-col gap-1.5">
@@ -503,12 +520,17 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
                 className="input"
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
-                placeholder={provider === "cloud" ? "Paste your key" : "sk-ant-..."}
+                placeholder={provider === "cloud" ? "Paste your key" : provider === "openai" ? "sk-..." : "sk-ant-..."}
               />
               <span className="hint">
                 {provider === "anthropic" && (
                   <>
                     Get a key at <KeyLink url={ANTHROPIC_KEYS_URL} />.{" "}
+                  </>
+                )}
+                {provider === "openai" && (
+                  <>
+                    Get a key at <KeyLink url={OPENAI_KEYS_URL} />.{" "}
                   </>
                 )}
                 You can also add it later in Settings.

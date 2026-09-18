@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import UpdateBanner from "./components/UpdateBanner";
+import WhatsNew from "./components/WhatsNew";
 import BottomNav from "./components/BottomNav";
 import Onboarding from "./components/Onboarding";
 import QuickNote from "./components/QuickNote";
@@ -35,6 +36,12 @@ function App() {
   liveDayRef.current = liveDay;
   const activeRef = useRef(active);
   activeRef.current = active;
+  // Pages stay mounted once opened and are only hidden, so switching tabs
+  // keeps what was typed, scrolled or opened on them.
+  const [visited, setVisited] = useState<Set<string>>(() => new Set(["today"]));
+  useEffect(() => {
+    setVisited((prev) => (prev.has(active) ? prev : new Set(prev).add(active)));
+  }, [active]);
 
   useEffect(() => {
     firstRunScreen().then(setFirstRun);
@@ -108,9 +115,10 @@ function App() {
             onQuickNote={() => setNoteOpen(true)}
           />
         </div>
-        {active === "journal" && (
-          <div className="page absolute inset-0">
+        {visited.has("journal") && (
+          <div className={active === "journal" ? "page absolute inset-0" : "hidden"}>
             <Journal
+              active={active === "journal"}
               focus={journalFocus}
               onClearFocus={() => setJournalFocus(null)}
               onDaysChanged={(dates) => {
@@ -120,14 +128,14 @@ function App() {
             />
           </div>
         )}
-        {active === "insights" && (
-          <div className="page absolute inset-0 overflow-y-auto">
-            <Insights onOpenJournal={openJournal} />
+        {visited.has("insights") && (
+          <div className={active === "insights" ? "page absolute inset-0 overflow-y-auto" : "hidden"}>
+            <Insights active={active === "insights"} onOpenJournal={openJournal} />
           </div>
         )}
-        {active === "settings" && (
-          <div className="page absolute inset-0 overflow-y-auto">
-            <Settings />
+        {visited.has("settings") && (
+          <div className={active === "settings" ? "page absolute inset-0 overflow-y-auto" : "hidden"}>
+            <Settings active={active === "settings"} />
           </div>
         )}
       </main>
@@ -137,6 +145,7 @@ function App() {
       {(firstRun === "setup" || firstRun === "welcome-back") && (
         <Onboarding welcomeBack={firstRun === "welcome-back"} onDone={() => setFirstRun("none")} />
       )}
+      <WhatsNew screen={firstRun} />
     </div>
   );
 }

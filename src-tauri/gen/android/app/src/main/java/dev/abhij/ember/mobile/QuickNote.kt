@@ -172,6 +172,8 @@ class QuickNoteBootReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
       QuickNotes.refresh(context)
+      // Alarms don't survive a restart; the day reminders are set again.
+      DayReminders.scheduleAll(context)
     }
   }
 }
@@ -279,6 +281,10 @@ class EmberBridge(private val context: Context, private val onPickBackup: () -> 
   /** Called after notification permission is granted, so the note appears at once. */
   @JavascriptInterface
   fun refreshQuickNote() = QuickNotes.refresh(context)
+
+  /** Lunch, break and dinner reminders: {"enabled", "lunch", "break", "dinner"} as JSON. */
+  @JavascriptInterface
+  fun setDayReminders(config: String) = DayReminders.configure(context, config)
 
   @JavascriptInterface
   fun backupCopySupported(): Boolean = Backups.supported()

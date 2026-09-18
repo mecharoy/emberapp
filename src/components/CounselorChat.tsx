@@ -22,13 +22,23 @@ import type { ApplyResult } from "../db/sync";
 import { startLiveSync } from "../lan/phoneLink";
 import EntryReview from "./EntryReview";
 import CheckInForm from "./CheckInForm";
+import ChecklistPanel from "./ChecklistPanel";
+import { deleteAgenda, getAgenda, saveAgenda, saveChatSummary } from "../db/agendas";
+import { prepareConversation } from "../ai/prepare";
+import { fitTurn } from "../ai/window";
+import { contextBudget } from "../ai/budget";
+import { getSetting } from "../db/settings";
+import { extractCovered, markCovered } from "../ai/agenda";
+import { parseStyle } from "../ai/prompts/style";
+import type { AgendaItem } from "../db/types";
 
 // A synthetic first turn so the API (which expects the conversation to open
 // with a user message) has something to respond to for the AI's own opening
 // line. Filtered out of the rendered transcript — the user never typed it.
-const KICKOFF = "Let's begin tonight's check-in.";
+const KICKOFF = "Let's begin today's conversation.";
 const KICKOFF_PAST = "Let's look back on that day.";
-const KICKOFFS = new Set([KICKOFF, KICKOFF_PAST]);
+// The first one is what older versions stored.
+const KICKOFFS = new Set(["Let's begin tonight's check-in.", KICKOFF, KICKOFF_PAST]);
 
 const MAX_INPUT_HEIGHT_PX = 160;
 
@@ -47,7 +57,7 @@ function toDisplayError(e: unknown): DisplayError {
 
 type Turn = { history: { role: "user" | "assistant"; content: string }[]; sessionId: number };
 
-/** The evening conversation for one day: today, or an earlier day picked from
+/** The conversation for one day: today, or an earlier day picked from
  * the Journal calendar. Everything below keys off `date`, never the clock. */
 export default function CounselorChat({
   date,
@@ -74,6 +84,12 @@ export default function CounselorChat({
   // Two-step, because starting over discards the exchange for good.
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [error, setError] = useState<DisplayError | null>(null);
+  // Today's checklist (coach and therapist styles); null = none made.
+  const [agenda, setAgenda] = useState<AgendaItem[] | null>(null);
+  const [agendaState, setAgendaState] = useState<"idle" | "making" | "failed">("idle");
+  const [friendMode, setFriendMode] = useState(false);
+  const agendaRef = useRef<AgendaItem[] | null>(null);
+  agendaRef.current = agenda;
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -101,8 +117,20 @@ export default function CounselorChat({
       setView(s.status === "wrapped" ? "journal" : loaded.length > 0 || !notes ? "conversation" : "notes");
       firstNewIdRef.current = loaded.reduce((max, m) => Math.max(max, m.id), 0) + 1;
       setMessages(loaded);
+      setAgenda(await getAgenda(date));
+      setFriendMode(parseStyle("", await getSetting("conversation_approach")).approach === "friend");
     })();
   }, [date]);
+
+  // The style can change in Settings while this page stays open.
+  useEffect(() => {
+    const unlisten = listen("settings:saved", async () => {
+      setFriendMode(parseStyle("", await getSetting("conversation_approach")).approach === "friend");
+    });
+    return () => {
+      unlisten.then((u) => u());
+    };
+  }, []);
 
   // Talking through the computer's model: keep both devices in step while
   // the conversation is on screen.
@@ -121,6 +149,7 @@ export default function CounselorChat({
       if (busyRef.current) return;
       setSession(s);
       setMessages(loaded);
+      setAgenda(await getAgenda(date));
     });
     return () => {
       unlisten.then((u) => u());
@@ -186,17 +215,19 @@ export default function CounselorChat({
       const exchangeCount = historyForModel.filter((m) => m.role === "user").length;
       const [system, preamble] = await Promise.all([
         counselorSystemFor(sessionId),
-        buildCounselorTurnPreamble({ exchangeCount }),
+        buildCounselorTurnPreamble({ exchangeCount, date }),
       ]);
       const provider = await getProvider();
       // conversationId lets a provider resume its own session for turn 2+
       // instead of replaying the transcript; providers that can't just ignore
       // it. turnPreamble is applied by the provider, not here, so the history
       // it sees stays exactly what's in the database.
+      // Small models get a rolling window: older turns become a summary.
+      const fitted = await fitTurn({ date, system, history: historyForModel, preamble });
       const iterator = provider
-        .chatStream(historyForModel, system, {
+        .chatStream(fitted.history, system, {
           conversationId: String(sessionId),
-          turnPreamble: preamble,
+          turnPreamble: fitted.preamble,
         })
         [Symbol.asyncIterator]();
 
@@ -233,7 +264,10 @@ export default function CounselorChat({
       // write request inside a cut-off reply isn't trusted.
       const journal = extractJournalRequest(clean.length > 0 ? clean : full);
       journalRequested = journal.requested && !stopRequested;
-      await addMessage(sessionId, "assistant", journal.clean || "Writing the entry now.");
+      const covered = extractCovered(journal.clean);
+      const current = agendaRef.current;
+      if (covered.ids.length > 0 && current) await updateAgenda(markCovered(current, covered.ids));
+      await addMessage(sessionId, "assistant", covered.clean || "Writing the entry now.");
       setMessages(await listMessages(sessionId));
     } catch (e) {
       // An interrupted reply is display-only: hide marker syntax but don't
@@ -248,9 +282,39 @@ export default function CounselorChat({
     if (journalRequested) await requestWrite();
   }
 
+  async function updateAgenda(items: AgendaItem[]) {
+    setAgenda(items);
+    await saveAgenda(date, items);
+  }
+
+  /** Makes the checklist from the check-in, notes, entries and topics. A
+   *  failure leaves the conversation to go ahead without one. */
+  async function makeAgenda() {
+    const approach = parseStyle("", await getSetting("conversation_approach")).approach;
+    // Friend style has no checklist; with a small model it still gets the
+    // briefing the preparation writes.
+    if (approach === "friend" && (await contextBudget()).mode === "full") return;
+    setAgendaState("making");
+    try {
+      const { items } = await prepareConversation(date, approach);
+      if (items) {
+        await updateAgenda(items);
+        setAgendaState("idle");
+      } else setAgendaState(approach === "friend" ? "idle" : "failed");
+    } catch {
+      setAgendaState("failed");
+    }
+  }
+
   async function handleStart() {
     if (!session || busy) return;
     const kickoff = date === localDateKey() ? KICKOFF : KICKOFF_PAST;
+    setBusy(true);
+    try {
+      if (!agendaRef.current) await makeAgenda();
+    } finally {
+      setBusy(false);
+    }
     await linkCapturesToSession(session.id, date);
     await addMessage(session.id, "user", kickoff);
     setMessages(await listMessages(session.id));
@@ -287,6 +351,7 @@ export default function CounselorChat({
     if (!session || busy) return;
     setConfirmRestart(false);
     await restartConversation(session.id);
+    await saveChatSummary(date, null, 0);
     // The system prompt is cached per session id — it has to forget the old
     // thread, or the "fresh" conversation carries it on.
     systemPromptRef.current = null;
@@ -300,6 +365,13 @@ export default function CounselorChat({
     setWriteNow(false);
     setView("conversation");
     setSession({ ...session, status: "open" });
+    if (redoCheckIn) {
+      // A new check-in gets a new checklist.
+      await deleteAgenda(date);
+      setAgenda(null);
+    } else if (agendaRef.current) {
+      await updateAgenda(agendaRef.current.map((i) => (i.state === "done" ? { ...i, state: "open" } : i)));
+    }
     if (!redoCheckIn) await handleStart();
   }
 
@@ -315,6 +387,25 @@ export default function CounselorChat({
   }
 
   const isToday = date === localDateKey();
+  const showChecklist = !friendMode && (agenda !== null || agendaState !== "idle");
+  const checklist = (compact: boolean) => (
+    <ChecklistPanel
+      compact={compact}
+      items={agenda}
+      making={agendaState === "making"}
+      failed={agendaState === "failed"}
+      onChange={updateAgenda}
+      onRemake={async () => {
+        if (busy) return;
+        setBusy(true);
+        try {
+          await makeAgenda();
+        } finally {
+          setBusy(false);
+        }
+      }}
+    />
+  );
   const visibleMessages = messages.filter((m) => !(m.role === "user" && KICKOFFS.has(m.content)));
   const started = messages.length > 0;
   const wrapped = session.status === "wrapped";
@@ -377,9 +468,9 @@ export default function CounselorChat({
         </div>
       )}
 
-      {view === "notes" && notes ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">{notes(() => setView("conversation"))}</div>
-      ) : view === "journal" ? (
+      {/* Stays mounted across tabs, like the conversation itself: leaving this
+          tab mid-generation must not cut off the entry it's writing. */}
+      <div className={view === "journal" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
         <EntryReview
           sessionId={session.id}
           date={date}
@@ -388,10 +479,24 @@ export default function CounselorChat({
           onWriteHandled={() => setWriteNow(false)}
           onRequestWrite={requestWrite}
         />
-      ) : !started && !wrapped ? (
-        <CheckInForm date={date} busy={busy} onStart={handleStart} onSkip={handleStart} />
-      ) : (
-        <>
+      </div>
+      {view === "notes" && notes ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">{notes(() => setView("conversation"))}</div>
+      ) : null}
+      {/* Kept mounted while another tab is shown, so a half-filled check-in
+          isn't lost by looking at the notes. */}
+      {!started && !wrapped && (
+        <div className={view === "conversation" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+          {agendaState === "making" && <div className="px-5 pt-5">{checklist(true)}</div>}
+          <div className={agendaState === "making" ? "hidden" : "flex min-h-0 flex-1 flex-col"}>
+            <CheckInForm date={date} busy={busy} onStart={handleStart} onSkip={handleStart} />
+          </div>
+        </div>
+      )}
+      {view === "conversation" && (started || wrapped) && (
+        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {showChecklist && <div className="md:hidden">{checklist(true)}</div>}
           <div ref={scrollerRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
             {visibleMessages.length === 0 && wrapped && (
               <p className="py-6 text-center font-serif text-[15px] italic text-ink-faint">
@@ -413,7 +518,7 @@ export default function CounselorChat({
           {wrapped ? (
             <p className="border-t border-rule px-5 py-3 text-[13px] leading-relaxed text-ink-faint">
               {isToday
-                ? "Tonight’s conversation is wrapped up and the entry is under Today’s journal."
+                ? "This conversation is wrapped up and the entry is under Journal."
                 : "This conversation is wrapped up and the entry is saved."}{" "}
               Keep talking to add more, and Ember can rewrite the entry.
             </p>
@@ -443,7 +548,9 @@ export default function CounselorChat({
               </div>
             </div>
           )}
-        </>
+        </div>
+        {showChecklist && <div className="hidden md:flex">{checklist(false)}</div>}
+        </div>
       )}
 
       {error && view === "conversation" && (

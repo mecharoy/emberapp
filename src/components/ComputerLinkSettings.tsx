@@ -105,7 +105,7 @@ export default function ComputerLinkSettings() {
         ? "Checking…"
         : status.localModel
           ? `Local model: ${status.model ?? "unknown"}${status.state === "ready" ? "" : ` (${status.state})`}`
-          : "The computer isn't using a local model.";
+          : "Uses the computer's AI provider.";
     return (
       <div className="flex flex-col gap-3">
         <p className="text-[15px] text-ink">

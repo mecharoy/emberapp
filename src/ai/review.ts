@@ -15,6 +15,8 @@ import { getSetting } from "../db/settings";
 import type { DayMetrics, WeeklyReview } from "../db/types";
 import { addDays, mondayOf } from "../insights/stats";
 import type { AIProvider } from "./types";
+import { contextBudget } from "./budget";
+import { compactDayLine } from "./compactDays";
 
 const claim = z.object({
   claim: z.string().min(1),
@@ -144,12 +146,14 @@ async function writeReview(
   // Standing cards come from the review just before this week, so a rewrite
   // of an old week never inherits cards from a later one.
   const previous = reviews.find((r) => r.week_start < weekStart) ?? null; // reviews: newest first
-  const currentProfile = await getProfileSummary();
+  const [currentProfile, budget] = await Promise.all([getProfileSummary(), contextBudget()]);
+  // Small models read one plain line per day instead of the JSON record.
+  const compact = budget.mode === "compact";
 
   const input: ReviewPromptInput = {
     weekStart,
     weekEnd,
-    days: days.map((m) => ({ date: m.date, rawJson: m.raw_json })),
+    days: days.map((m) => ({ date: m.date, rawJson: compact ? compactDayLine(m.raw_json) : m.raw_json })),
     currentProfile,
     currentStrengths: previous?.strengths ?? "[]",
     currentFocusAreas: previous?.focus_areas ?? "[]",

@@ -142,6 +142,7 @@ describe("applyCheckIn", () => {
       lunch: null,
       eveningBreak: null,
       dinner: null,
+      dayNotes: {},
     });
     expect(stored.mood).toBe(3);
     expect(stored.mood_source).toBe("user");
@@ -191,7 +192,7 @@ describe("new fields (activities, thinking traps, routine)", () => {
         { role: "user", content: "Honestly the whole project is doomed." },
         { role: "assistant", content: "Earlier you called yourself lazy — say more?" },
       ],
-      { mood: null, energy: null, sleepHours: null, feeling: null, onMind: "it'll go badly tomorrow", habits: {}, bedtime: null, wakeTime: null, sleepLatencyMin: null, sleepQuality: null, lunch: null, eveningBreak: null, dinner: null },
+      { mood: null, energy: null, sleepHours: null, feeling: null, onMind: "it'll go badly tomorrow", habits: {}, bedtime: null, wakeTime: null, sleepLatencyMin: null, sleepQuality: null, lunch: null, eveningBreak: null, dinner: null, dayNotes: {} },
     );
     expect(grounded.thinking_traps.map((t) => t.type)).toEqual(["catastrophising", "fortune_telling"]);
   });

@@ -86,11 +86,14 @@ function PageCard({ entry, fallbackPaper, index, onOpen }: { entry: Entry; fallb
 }
 
 export default function Journal({
+  active = true,
   focus = null,
   onClearFocus,
   onDaysChanged,
   onTalkAbout,
 }: {
+  /** The page stays mounted between visits; hidden, it keeps quiet. */
+  active?: boolean;
   focus?: JournalFocus | null;
   onClearFocus?: () => void;
   /** Called with the dates an entry was deleted from, moved between, or written for. */
@@ -128,14 +131,15 @@ export default function Journal({
   }
 
   useEffect(() => {
+    if (!active) return;
     refresh();
     getSetting("journal_paper")
       .then((v) => setDefaultPaper(paperById(v).id))
       .catch(() => {});
-  }, []);
+  }, [active]);
 
   // Back closes an open page and returns to the list.
-  useBackButton(selectedDate !== null, () => closeDay());
+  useBackButton(active && selectedDate !== null, () => closeDay());
 
   const entryByDate = useMemo(() => {
     const map = new Map<string, Entry>();
@@ -474,7 +478,7 @@ export default function Journal({
               <p className="hint">
                 {unwrittenDays.has(selectedDate)
                   ? "It opens on the Today tab, where you can keep talking or have Ember write the entry."
-                  : "Talking it through opens that day’s check-in and conversation on the Today tab, and Ember writes the entry from it, as it does in the evening."}
+                  : "Talking it through opens that day’s check-in and conversation on the Today tab, and Ember writes the entry from it."}
               </p>
               {dayNotes && dayNotes.length > 0 && <DayNotes notes={dayNotes} />}
             </div>

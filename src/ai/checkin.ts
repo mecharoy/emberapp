@@ -20,6 +20,47 @@ export interface CheckInSummary {
   lunch: DayPoint;
   eveningBreak: DayPoint;
   dinner: DayPoint;
+  /** What they did in each stretch, in their words (DAY_STRETCHES keys). */
+  dayNotes: Record<string, string>;
+}
+
+/** The stretches of the day the check-in asks about, split at lunch, the
+ *  break and dinner. */
+export const DAY_STRETCHES = [
+  { key: "morning", from: "waking up", to: "lunch" },
+  { key: "afternoon", from: "lunch", to: "the break" },
+  { key: "evening", from: "the break", to: "dinner" },
+  { key: "night", from: "dinner", to: "now" },
+] as const;
+
+/** Hours asleep from the sleep diary: in bed → up, less the time it took to
+ *  fall asleep. Null unless both times are given. */
+export function sleepHoursFrom(bedtime: string | null, wakeTime: string | null, latencyMin: number | null): number | null {
+  const toMin = (t: string | null) => (t && /^\d{2}:\d{2}$/.test(t) ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3)) : null);
+  const bed = toMin(bedtime);
+  const up = toMin(wakeTime);
+  if (bed === null || up === null) return null;
+  let minutes = up - bed;
+  if (minutes <= 0) minutes += 24 * 60;
+  minutes -= latencyMin ?? 0;
+  if (minutes <= 0 || minutes > 20 * 60) return null;
+  return Math.round((minutes / 60) * 2) / 2;
+}
+
+function parseDayNotes(json: string | null | undefined): Record<string, string> {
+  const notes: Record<string, string> = {};
+  try {
+    const parsed: unknown = JSON.parse(json || "{}");
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      for (const s of DAY_STRETCHES) {
+        const v = (parsed as Record<string, unknown>)[s.key];
+        if (typeof v === "string" && v.trim()) notes[s.key] = v.trim();
+      }
+    }
+  } catch {
+    // unreadable — the rest of the check-in still counts
+  }
+  return notes;
 }
 
 export type DayPoint = string | "not-yet" | "skipped" | null;
@@ -44,7 +85,8 @@ export function isEmptyCheckIn(c: CheckInSummary): boolean {
     c.sleepQuality === null &&
     c.lunch === null &&
     c.eveningBreak === null &&
-    c.dinner === null
+    c.dinner === null &&
+    Object.keys(c.dayNotes).length === 0
   );
 }
 
@@ -76,6 +118,7 @@ export function toCheckInSummary(row: CheckIn | null): CheckInSummary | null {
     lunch: toDayPoint(row.lunch),
     eveningBreak: toDayPoint(row.evening_break),
     dinner: toDayPoint(row.dinner),
+    dayNotes: parseDayNotes(row.day_notes),
   };
   return isEmptyCheckIn(summary) ? null : summary;
 }
@@ -101,6 +144,12 @@ export function formatCheckInForPrompt(c: CheckInSummary | null): string {
   }
   for (const [label, point] of dayPoints(c)) {
     if (point) lines.push(`- ${label}: ${point === "not-yet" ? "not yet" : point}`);
+  }
+  // Their own account of each stretch: the conversation builds on it rather
+  // than asking again.
+  for (const s of DAY_STRETCHES) {
+    const text = c.dayNotes[s.key];
+    if (text) lines.push(`- what they did, ${s.from} → ${s.to === "now" ? "later" : s.to}, in their words: "${text}"`);
   }
   return lines.join("\n");
 }

@@ -1,6 +1,6 @@
 // The evening check-in form (migration 0007): mood, energy, sleep, a feeling
 // word, what's on their mind, pinned habits and (0010) lunch, evening break
-// and dinner — filled in before the
+// and dinner, (0013) what they did between those — filled in before the
 // conversation starts. Their own ratings, so they beat anything inferred.
 
 import { getDb } from "./client";
@@ -33,6 +33,8 @@ export interface CheckInInput {
   lunch?: string | null;
   eveningBreak?: string | null;
   dinner?: string | null;
+  /** What they did in each stretch of the day (migration 0013). */
+  dayNotes?: Record<string, string> | null;
 }
 
 export async function getCheckIn(date: string): Promise<CheckIn | null> {
@@ -52,8 +54,8 @@ export async function saveCheckIn(input: CheckInInput): Promise<void> {
   const now = localStamp();
   await db.execute(
     `INSERT INTO checkins (date, mood, energy, sleep_hours, feeling, on_mind, habits, created_at, updated_at,
-                           bedtime, wake_time, sleep_latency_min, sleep_quality, lunch, evening_break, dinner)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                           bedtime, wake_time, sleep_latency_min, sleep_quality, lunch, evening_break, dinner, day_notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
      ON CONFLICT(date) DO UPDATE SET
        mood = excluded.mood,
        energy = excluded.energy,
@@ -68,7 +70,8 @@ export async function saveCheckIn(input: CheckInInput): Promise<void> {
        sleep_quality = excluded.sleep_quality,
        lunch = excluded.lunch,
        evening_break = excluded.evening_break,
-       dinner = excluded.dinner`,
+       dinner = excluded.dinner,
+       day_notes = excluded.day_notes`,
     [
       input.date,
       input.mood,
@@ -86,6 +89,7 @@ export async function saveCheckIn(input: CheckInInput): Promise<void> {
       input.lunch ?? null,
       input.eveningBreak ?? null,
       input.dinner ?? null,
+      input.dayNotes && Object.keys(input.dayNotes).length > 0 ? JSON.stringify(input.dayNotes) : null,
     ],
   );
 }

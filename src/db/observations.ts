@@ -13,7 +13,7 @@ export async function rebuildObservations(): Promise<void> {
   const metrics = await listAllDayMetrics();
   const aggregates = foldMetricsIntoObservations(metrics);
 
-  const existing = await db.select<Observation[]>("SELECT kind, key, pinned FROM observations");
+  const existing = await db.select<Observation[]>("SELECT kind, key, pinned, first_seen, last_seen FROM observations");
   const pinnedIdentities = new Set(
     existing.filter((o) => o.pinned === 1).map((o) => `${o.kind} ${canonicalKey(o.key)}`),
   );
@@ -25,6 +25,17 @@ export async function rebuildObservations(): Promise<void> {
       `INSERT INTO observations (kind, key, detail, sentiment, occurrences, first_seen, last_seen, pinned)
        VALUES ($1, $2, NULL, $3, $4, $5, $6, $7)`,
       [a.kind, a.key, a.sentiment, a.occurrences, a.first_seen, a.last_seen, pinned],
+    );
+  }
+  // A habit they added themselves (from a suggestion) may not be in any entry
+  // yet; it stays pinned until it is.
+  const derived = new Set(aggregates.map((a) => `${a.kind} ${canonicalKey(a.key)}`));
+  for (const o of existing) {
+    if (o.kind !== "habit" || o.pinned !== 1 || derived.has(`habit ${canonicalKey(o.key)}`)) continue;
+    await db.execute(
+      `INSERT INTO observations (kind, key, detail, sentiment, occurrences, first_seen, last_seen, pinned)
+       VALUES ('habit', $1, NULL, NULL, 0, $2, $3, 1)`,
+      [o.key, o.first_seen, o.last_seen],
     );
   }
 }
@@ -65,6 +76,23 @@ export async function pinHabit(key: string): Promise<void> {
   }
   if (!obs) throw new Error(`No habit called "${key}" in your entries.`);
   await db.execute("UPDATE observations SET pinned = 1 WHERE id = $1", [obs.id]);
+}
+
+/** Starts tracking a habit by name, whether or not it has come up in an
+ *  entry yet (a suggestion they took up). */
+export async function addTrackedHabit(key: string, today: string): Promise<void> {
+  const name = key.trim();
+  if (!name) return;
+  try {
+    await pinHabit(name);
+  } catch {
+    const db = await getDb();
+    await db.execute(
+      `INSERT INTO observations (kind, key, detail, sentiment, occurrences, first_seen, last_seen, pinned)
+       VALUES ('habit', $1, NULL, NULL, 0, $2, $2, 1)`,
+      [name, today],
+    );
+  }
 }
 
 /** User promotes/demotes a discovered habit to a tracked one. */

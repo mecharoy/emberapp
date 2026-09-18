@@ -18,3 +18,5 @@ keystore.properties
 
 /.tauri
 /tauri.settings.gradle
+# Copy of dist/ made by the build
+/app/src/main/assets/

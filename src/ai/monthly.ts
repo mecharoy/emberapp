@@ -3,6 +3,8 @@
 // short letter and one "what changed" sentence around them.
 
 import { z } from "zod";
+import { contextBudget } from "./budget";
+import { compactDayLine } from "./compactDays";
 import { getProvider } from "./factory";
 import { extractJson } from "./json";
 import { JOB_REPLY_TOKENS } from "./replySizes";
@@ -164,13 +166,14 @@ async function runOnce(): Promise<MonthlyResult | null> {
   const prev = previousMonth(month);
   const days = metrics.filter((m) => m.date.startsWith(month));
 
+  const compact = (await contextBudget()).mode === "compact";
   let result: MonthlyResult;
   try {
     result = await monthlyWithProvider(await getProvider(), {
       userName: (await getSetting("user_name")).trim(),
       stats,
       previous: rows.some((r) => r.date.startsWith(prev)) ? monthStats(rows, prev) : null,
-      days: days.map((m) => ({ date: m.date, rawJson: m.raw_json })),
+      days: days.map((m) => ({ date: m.date, rawJson: compact ? compactDayLine(m.raw_json) : m.raw_json })),
       assessments: assessments.filter((a) => a.date.startsWith(month)),
     });
   } catch (e) {

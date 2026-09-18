@@ -1,5 +1,6 @@
 import java.io.FileInputStream
 import java.util.Properties
+import org.gradle.api.tasks.Sync
 
 plugins {
     id("com.android.application")
@@ -76,6 +77,17 @@ android {
         buildConfig = true
     }
 }
+
+// Tauri's Android Gradle project serves the web app from assets. Keep that
+// directory in sync with Vite's production output before every APK is built.
+// Without this, the APK starts but cannot find its index.html entry point.
+val syncFrontendAssets by tasks.registering(Sync::class) {
+    from(file("../../../../dist"))
+    into(layout.projectDirectory.dir("src/main/assets"))
+}
+
+tasks.matching { it.name.contains("Release") }
+    .configureEach { dependsOn(syncFrontendAssets) }
 
 rust {
     rootDirRel = "../../../"

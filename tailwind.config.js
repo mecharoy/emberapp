@@ -12,7 +12,7 @@ export default {
         rule: { DEFAULT: "#ddd3c1", strong: "#c7baa3" },
         ink: { DEFAULT: "#28231e", soft: "#564e45", faint: "#766c60" },
         ember: { DEFAULT: "#b3441a", deep: "#943712", wash: "#f2e0d2" },
-        moss: "#3d6b35",
+        moss: { DEFAULT: "#3d6b35", wash: "#e3eadb" },
         danger: { DEFAULT: "#9e2f25", wash: "#f5e1dc" },
       },
       fontFamily: {

@@ -39,6 +39,8 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_quick_note_info" />
         </receiver>
         <receiver android:name=".QuickNoteReceiver" android:exported="false" />
+        <!-- Lunch, break and dinner reminders answered in the notification (DayReminders.kt). -->
+        <receiver android:name=".DayReminderReceiver" android:exported="false" />
         <receiver android:name=".QuickNoteBootReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

@@ -25,6 +25,9 @@ export interface OpenAiCompatibleConfig {
    *  such as Groq's `reasoning_effort`. Never sent to an endpoint that was
    *  not declared with them, since an unknown field is a 400 on some. */
   extraBody?: Record<string, unknown>;
+  /** The body field the reply ceiling goes in. OpenAI's own newer models
+   *  take only max_completion_tokens. Default max_tokens. */
+  tokenField?: "max_tokens" | "max_completion_tokens";
   /** Only changes the wording of the errors, never the request. */
   kind: "local" | "cloud";
 }
@@ -88,7 +91,7 @@ async function callEndpoint(
   const body = JSON.stringify({
     model: config.model,
     stream,
-    ...(maxTokens ? { max_tokens: maxTokens } : {}),
+    ...(maxTokens ? { [config.tokenField ?? "max_tokens"]: maxTokens } : {}),
     ...(config.extraBody ?? {}),
     messages: outgoing,
   });

@@ -11,6 +11,7 @@
 // uncovered, and the next summary folds it in.
 
 import { z } from "zod";
+import { contextBudget } from "./budget";
 import { getProvider } from "./factory";
 import { extractJson } from "./json";
 import { JOB_REPLY_TOKENS } from "./replySizes";
@@ -239,6 +240,9 @@ async function runOnce(): Promise<FortnightResult | null> {
     const summaryLines = new Map(metrics.map((m) => [m.date, m.summary_line]));
     const previous = summaries[summaries.length - 1];
 
+    // Small models: the day's summary line and highlights stand in for the
+    // full narrative, so two weeks fit.
+    const compact = (await contextBudget()).mode === "compact";
     let result: FortnightResult;
     try {
       result = await fortnightWithProvider(await getProvider(), {
@@ -249,7 +253,7 @@ async function runOnce(): Promise<FortnightResult | null> {
         entries: batch.map((e) => ({
           date: e.date,
           title: e.title,
-          narrative: e.narrative,
+          narrative: compact ? (summaryLines.get(e.date) ?? e.narrative.slice(0, 300)) : e.narrative,
           highlights: parseHighlights(e.highlights),
           summaryLine: summaryLines.get(e.date) ?? null,
         })),

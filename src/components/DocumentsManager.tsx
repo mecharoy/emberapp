@@ -98,7 +98,7 @@ export default function DocumentsManager() {
           <ul className="flex flex-col divide-y divide-rule border-y border-rule">
             {docs.map((d) => (
               <li key={d.id} className="flex items-center gap-3 py-2 text-[13.5px]">
-                <label className="flex min-w-0 flex-1 items-center gap-2.5" title="Load into each evening conversation">
+                <label className="flex min-w-0 flex-1 items-center gap-2.5" title="Read in each conversation">
                   <input
                     type="checkbox"
                     checked={d.enabled === 1}

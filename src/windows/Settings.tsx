@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { emit } from "@tauri-apps/api/event";
 import { getAllSettings, setSetting } from "../db/settings";
 import type { SettingKey } from "../db/types";
 import { exportEverything, deleteEverything } from "../db/exporter";
-import { getApiKey, setApiKey, getCloudApiKey, setCloudApiKey } from "../secrets";
+import { getApiKey, setApiKey, getCloudApiKey, setCloudApiKey, getOpenAiKey, setOpenAiKey } from "../secrets";
+import { DEFAULT_OPENAI_MODEL, OPENAI_KEYS_URL, createOpenAiProvider } from "../ai/providers/openai";
+import { PROVIDER_OPTIONS, isKnownProvider } from "../ai/providerList";
+import WritingStyle from "../components/WritingStyle";
 import { ANTHROPIC_KEYS_URL, createAnthropicProvider } from "../ai/providers/anthropic";
 import { CLOUD_PRESETS, createCloudProvider } from "../ai/providers/cloud";
 import { ProviderError } from "../ai/types";
 import DocumentsManager from "../components/DocumentsManager";
 import type { Instrument } from "../db/types";
 import UpdatesAndFeedback from "../components/UpdatesAndFeedback";
-import PromptViewer from "../components/PromptViewer";
 import StylePicker from "../components/StylePicker";
 import { parseStyle } from "../ai/prompts/style";
 import KeyLink from "../components/KeyLink";
@@ -39,12 +42,14 @@ const INSIGHT_MODULES = [
   { id: "activities", label: "Activities & mood" },
   { id: "thinking", label: "Thinking patterns" },
   { id: "reviews", label: "Weekly & monthly reviews" },
+  { id: "suggestions", label: "Suggestions" },
 ] as const;
 
-export default function Settings() {
+export default function Settings({ active = true }: { active?: boolean }) {
   const [form, setForm] = useState<FormState | null>(null);
   const [apiKey, setApiKeyState] = useState("");
   const [cloudKey, setCloudKeyState] = useState("");
+  const [openAiKey, setOpenAiKeyState] = useState("");
   const [savedAt, setSavedAt] = useState<number | null>(null);
   // The chat reads the saved settings, not this form, so an unsaved switch of
   // provider looks like it worked here and fails there. Tracked to say so.
@@ -64,15 +69,21 @@ export default function Settings() {
     { status: "idle" } | { status: "testing" } | { status: "ok" } | { status: "error"; message: string }
   >({ status: "idle" });
 
+  // The page stays mounted between visits; it reads the saved settings again
+  // on each return, unless there are unsaved changes to keep.
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
   useEffect(() => {
+    if (!active || dirtyRef.current) return;
     getAllSettings().then((s) => {
       // A provider the phone doesn't have (copied settings, an old default)
       // shows as the free hosted one, which is what the chat will use.
-      setForm(s.provider === "anthropic" || s.provider === "cloud" || s.provider === "pc" ? s : { ...s, provider: "cloud" });
+      setForm(isKnownProvider(s.provider) ? s : { ...s, provider: "cloud" });
     });
     getApiKey().then(setApiKeyState).catch(() => {});
     getCloudApiKey().then(setCloudKeyState).catch(() => {});
-  }, []);
+    getOpenAiKey().then(setOpenAiKeyState).catch(() => {});
+  }, [active]);
 
   /** Switching to the free hosted provider with nothing configured yet fills
    *  in the first preset, so the endpoint and model fields are never blank. */
@@ -87,6 +98,8 @@ export default function Settings() {
         next.cloud_max_tokens = String(preset.maxTokens);
       } else if (value === "anthropic" && !prev.model.startsWith("claude")) {
         next.model = "claude-sonnet-5";
+      } else if (value === "openai" && !prev.model.startsWith("gpt")) {
+        next.model = DEFAULT_OPENAI_MODEL;
       }
       return next;
     });
@@ -120,6 +133,12 @@ export default function Settings() {
     "update_source",
     "update_auto_check",
     "backup_copy",
+    "usual_lunch",
+    "usual_break",
+    "usual_dinner",
+    "day_reminders",
+    "writing_style_sample",
+    "context_mode",
   ];
 
   async function handleSave() {
@@ -128,9 +147,13 @@ export default function Settings() {
       ...EDITABLE_KEYS.map((key) => setSetting(key, form[key])),
       setApiKey(apiKey), // the app's private key store, never the database
       setCloudApiKey(cloudKey),
+      setOpenAiKey(openAiKey),
     ]);
     setSavedAt(Date.now());
     setDirty(false);
+    await emit("settings:saved");
+    // The reminders Android rings (evening and day times) follow the new settings.
+    await emit("reminder:changed");
   }
 
   function toggleInstrument(id: Instrument) {
@@ -174,6 +197,7 @@ export default function Settings() {
     await deleteEverything();
     await setApiKey("");
     await setCloudApiKey("");
+    await setOpenAiKey("");
     window.location.reload(); // fresh app state — onboarding will greet again
   }
 
@@ -186,6 +210,8 @@ export default function Settings() {
       const provider =
         form?.provider === "pc"
           ? await getProvider() // saved just above
+          : form?.provider === "openai"
+          ? createOpenAiProvider({ apiKey: openAiKey, model: form?.model || DEFAULT_OPENAI_MODEL })
           : form?.provider === "anthropic"
           ? createAnthropicProvider({
               apiKey,
@@ -238,26 +264,16 @@ export default function Settings() {
       </div>
 
       <Section title="AI provider">
-        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Provider">
-          {[
-            { id: "cloud", name: "Free hosted model", blurb: "Groq, Gemini, OpenRouter" },
-            { id: "anthropic", name: "Anthropic API", blurb: "Pay as you go" },
-            { id: "pc", name: "Computer", blurb: "Local model on your paired computer" },
-          ].map((p) => (
-            <button
-              key={p.id}
-              role="radio"
-              aria-checked={form.provider === p.id}
-              onClick={() => selectProvider(p.id)}
-              className={`rounded-xl border px-3.5 py-3 text-left transition-colors duration-200 ${
-                form.provider === p.id ? "border-ember/60 bg-ember-wash/50" : "border-rule bg-sheet/50"
-              }`}
-            >
-              <span className="block text-[14.5px] text-ink">{p.name}</span>
-              <span className="mt-0.5 block text-[12.5px] text-ink-faint">{p.blurb}</span>
-            </button>
-          ))}
-        </div>
+        <Field label="Provider">
+          <select className="input" value={form.provider} onChange={(e) => selectProvider(e.target.value)}>
+            {PROVIDER_OPTIONS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <span className="hint">{PROVIDER_OPTIONS.find((p) => p.id === form.provider)?.blurb}</span>
+        </Field>
 
         {form.provider === "cloud" && (
           <>
@@ -354,10 +370,42 @@ export default function Settings() {
         {form.provider === "pc" && (
           <>
             <p className="hint">
-              Uses the local model on your paired computer. Both must be on the same network. Weekly and monthly reviews are
-              written on the computer.
+              Uses your paired computer&rsquo;s AI: its local model or the provider chosen there. Both must be on the same
+              network. Weekly and monthly reviews are written on the computer.
             </p>
             {testButton(false)}
+          </>
+        )}
+
+        {form.provider === "openai" && (
+          <>
+            <Field label="API key">
+              <input
+                type="password"
+                autoComplete="off"
+                className="input"
+                value={openAiKey}
+                onChange={(e) => {
+                  setOpenAiKeyState(e.target.value);
+                  setDirty(true);
+                }}
+                placeholder="sk-..."
+              />
+              <span className="hint">
+                Get one at <KeyLink url={OPENAI_KEYS_URL} />.
+              </span>
+            </Field>
+            <Field label="Model">
+              <input
+                className="input"
+                autoCapitalize="off"
+                autoCorrect="off"
+                value={form.model}
+                onChange={(e) => update("model", e.target.value)}
+                placeholder={DEFAULT_OPENAI_MODEL}
+              />
+            </Field>
+            {testButton(!openAiKey)}
           </>
         )}
 
@@ -394,6 +442,20 @@ export default function Settings() {
         )}
       </Section>
 
+      <Section title="How much Ember sends the model">
+        <Field label="Context">
+          <select className="input" value={form.context_mode || "auto"} onChange={(e) => update("context_mode", e.target.value)}>
+            <option value="auto">Automatic: compact for local and free models</option>
+            <option value="full">Everything: best with Claude or GPT</option>
+            <option value="compact">Compact: a short prompt and only what matters today</option>
+          </select>
+          <span className="hint">
+            Compact fits small models: a briefing is written before each conversation, older parts of a long chat are
+            summarised, and Insights work in smaller steps.
+          </span>
+        </Field>
+      </Section>
+
       <Section title="Sync with computer">
         <ComputerLinkSettings />
       </Section>
@@ -402,10 +464,42 @@ export default function Settings() {
         <Field label="Your name">
           <input className="input" value={form.user_name} onChange={(e) => update("user_name", e.target.value)} placeholder="Your name" />
         </Field>
-        <Field label="Evening reminder">
+        <Field label="Daily reminder">
           <input type="time" className="input w-40" value={form.reminder_time} onChange={(e) => update("reminder_time", e.target.value)} />
           <span className="hint">Skipped once today&rsquo;s entry is written.</span>
         </Field>
+        <div className="flex flex-col gap-1.5">
+          <span className="label">Your usual times</span>
+          <div className="grid grid-cols-3 gap-3">
+            {(
+              [
+                ["usual_lunch", "Lunch"],
+                ["usual_break", "Break"],
+                ["usual_dinner", "Dinner"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="flex flex-col gap-1 text-[12px] text-ink-faint">
+                {label}
+                <input type="time" className="input w-full" value={form[key]} onChange={(e) => update(key, e.target.value)} />
+              </label>
+            ))}
+          </div>
+          <label className="mt-1 flex items-center justify-between gap-4">
+            <span className="label">
+              Remind me at these times
+              <span className="hint mt-0.5 block">A notification to jot down what you did since the last one, answered right in it.</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={form.day_reminders === "1"}
+              onChange={async (e) => {
+                if (e.target.checked) await ensureNotificationPermission();
+                update("day_reminders", e.target.checked ? "1" : "");
+              }}
+              className="h-5 w-5 shrink-0 accent-ember"
+            />
+          </label>
+        </div>
         <Field label="Journal voice">
           <select className="input" value={form.voice} onChange={(e) => update("voice", e.target.value)}>
             <option value="first">First person (&ldquo;I&hellip;&rdquo;)</option>
@@ -437,15 +531,16 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="Evening conversation">
+      <Section title="Conversation">
         <Field label="Length">
           <select
             className="input"
-            value={form.chat_length_preference === "quick" ? "quick" : "standard"}
+            value={["quick", "long"].includes(form.chat_length_preference) ? form.chat_length_preference : "standard"}
             onChange={(e) => update("chat_length_preference", e.target.value)}
           >
-            <option value="standard">Standard (8–10 exchanges)</option>
             <option value="quick">Brief (3–4 exchanges)</option>
+            <option value="standard">Standard (8–10 exchanges)</option>
+            <option value="long">Long (15–20 exchanges)</option>
           </select>
         </Field>
         <StylePicker
@@ -457,7 +552,7 @@ export default function Settings() {
       </Section>
 
       <Section title="Documents">
-        <p className="hint">Ticked .md or .txt files are read in every evening conversation. Add a file again after editing it.</p>
+        <p className="hint">Ticked .md or .txt files are read in every conversation. Add a file again after editing it.</p>
         <DocumentsManager />
       </Section>
 
@@ -493,8 +588,8 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="Ember's instructions">
-        <PromptViewer style={style} />
+      <Section title="Your writing style">
+        <WritingStyle value={form.writing_style_sample} onChange={(v) => update("writing_style_sample", v)} />
       </Section>
 
       <Section title="Updates & feedback">

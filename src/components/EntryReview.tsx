@@ -6,6 +6,7 @@ import { getSetting } from "../db/settings";
 import { getCheckIn } from "../db/checkins";
 import { generateJournalEntry } from "../ai/journal";
 import { runDayExtraction } from "../ai/extractor";
+import { updateTopicsAfterConversation } from "../ai/topics";
 import { formatCheckInForPrompt, toCheckInSummary } from "../ai/checkin";
 import type { Message } from "../db/types";
 import EntryFields, { type EntryDraft } from "./EntryFields";
@@ -105,7 +106,10 @@ export default function EntryReview({ sessionId, date, transcript, writeNow, onW
       date,
       entry: { title: d.title, narrative: d.narrative, highlights: d.highlights, counselorNote: d.counselorNote },
       transcript,
-    }).catch(() => {});
+    })
+      // Then the topics Ember keeps across conversations (coach and therapist).
+      .then(() => updateTopicsAfterConversation(date, transcript))
+      .catch(() => {});
   }
 
   async function runGeneration(feedbackNote?: string, previousEntry?: EntryDraft) {
@@ -114,11 +118,12 @@ export default function EntryReview({ sessionId, date, transcript, writeNow, onW
     setErrorMessage(null);
     // Everything no entry covers yet, not just this date's — saving this
     // entry is what clears the backlog.
-    const [captures, voiceSetting, profileSummary, checkInRow] = await Promise.all([
+    const [captures, voiceSetting, profileSummary, checkInRow, writingStyle] = await Promise.all([
       listUnjournaledCaptures(date),
       getSetting("voice"),
       getProfileSummary(),
       getCheckIn(date),
+      getSetting("writing_style_sample"),
     ]);
 
     const result = await generateJournalEntry({
@@ -128,6 +133,7 @@ export default function EntryReview({ sessionId, date, transcript, writeNow, onW
       profileSummary: profileSummary ?? undefined,
       checkIn: formatCheckInForPrompt(toCheckInSummary(checkInRow)),
       voice: voiceSetting === "first" ? "first" : "second",
+      writingStyle,
       feedbackNote,
       // On regeneration the model needs the entry it's rewriting — feedback
       // like "make it shorter" has no referent otherwise.
@@ -215,7 +221,7 @@ export default function EntryReview({ sessionId, date, transcript, writeNow, onW
       <div className="fade-up flex flex-1 flex-col items-center justify-center gap-5 px-8 pb-8 pt-20 text-center">
         <p className="max-w-sm font-serif text-[17px] leading-relaxed text-ink-soft">
           {talked
-            ? `No entry yet. Ember can write it from ${isToday ? "tonight's" : "this"} conversation, and you can change anything after.`
+            ? `No entry yet. Ember can write it from ${isToday ? "today's" : "this"} conversation, and you can change anything after.`
             : "No entry yet. Talk it through first for a fuller entry, or let Ember write one from your notes and check-in."}
         </p>
         <button onClick={onRequestWrite} className="btn-primary">

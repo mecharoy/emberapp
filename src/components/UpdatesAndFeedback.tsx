@@ -91,7 +91,7 @@ export default function UpdatesAndFeedback({
             </span>
           )}
         </div>
-        <p className="hint">Open the downloaded APK to update. Your journal is kept.</p>
+        <p className="hint">Open the downloaded APK to update.</p>
       </div>
 
       <div className="flex flex-col gap-3">

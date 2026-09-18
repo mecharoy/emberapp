@@ -25,6 +25,9 @@
           "url": "https://api.anthropic.com/*"
         },
         {
+          "url": "https://api.openai.com/*"
+        },
+        {
           "url": "https://api.groq.com/*"
         },
         {

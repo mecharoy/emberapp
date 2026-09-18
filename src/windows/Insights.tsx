@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { listCaptureTimesSince, localDateKey } from "../db/captures";
 import { computeStreak, listEntries } from "../db/entries";
 import { listAllDayMetrics } from "../db/metrics";
-import { listObservations, pinHabit, setObservationPinned } from "../db/observations";
+import { addTrackedHabit, listObservations, pinHabit, setObservationPinned } from "../db/observations";
+import { deleteTopic, listTopics, setTopicStatus } from "../db/topics";
+import { findPatterns, loadPatterns, type Patterns, type Suggestion } from "../ai/patterns";
+import SuggestionsModule from "../components/insights/SuggestionsModule";
 import { listMonthlyReports, listWeeklyReviews } from "../db/reviews";
 import { listHabitPrefs, setHabitDirection, setHabitDismissed } from "../db/habitPrefs";
 import { getSetting } from "../db/settings";
@@ -19,6 +22,7 @@ import type {
   MemorySummary,
   MonthlyReport,
   Observation,
+  Topic,
   WeeklyReview,
 } from "../db/types";
 import { parseEnabledInstruments } from "../insights/assessments";
@@ -68,6 +72,8 @@ interface Loaded {
   enabledInstruments: Instrument[];
   /** What the last background review run couldn't write, "" if nothing. */
   jobsError: string;
+  patterns: Patterns | null;
+  topics: Topic[];
 }
 
 const plural = (n: number) => `${n} entr${n === 1 ? "y" : "ies"}`;
@@ -90,7 +96,15 @@ function describeRefresh(repair: ExtractionRepair, jobs: ReviewJobsResult): stri
   return parts.length > 0 ? parts.join(" ") : "Up to date.";
 }
 
-export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: JournalFocus) => void }) {
+export default function Insights({
+  onOpenJournal,
+  active = true,
+}: {
+  onOpenJournal: (focus: JournalFocus) => void;
+  /** The page stays mounted between visits; it reloads on each return. */
+  active?: boolean;
+}) {
+  const [patternsState, setPatternsState] = useState<{ busy: boolean; message: string | null }>({ busy: false, message: null });
   const [data, setData] = useState<Loaded | null>(null);
   const [refreshState, setRefreshState] = useState<{ busy: boolean; message: string | null }>({
     busy: false,
@@ -115,6 +129,8 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
       summaries,
       enabledCsv,
       jobsError,
+      patterns,
+      topics,
     ] = await Promise.all([
       listAllDayMetrics(),
       listEntries(),
@@ -130,6 +146,8 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
       listMemorySummaries(),
       getSetting("assessments_enabled"),
       getSetting("jobs_last_error"),
+      loadPatterns(),
+      listTopics(),
     ]);
     const hidden = new Set(hiddenCsv.split(",").map((s) => s.trim()).filter(Boolean));
     setData({
@@ -147,11 +165,17 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
       summaries,
       enabledInstruments: parseEnabledInstruments(enabledCsv),
       jobsError,
+      patterns,
+      topics,
     });
   }
 
   useEffect(() => {
-    refresh();
+    if (active) refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
+  useEffect(() => {
     // the scheduler runs the review jobs; the extractor runs in the
     // background after each save — reload whenever either one lands
     const unlistenReviews = listen("reviews:updated", () => refresh());
@@ -219,6 +243,23 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
   async function handleDirection(key: string, direction: "less" | null) {
     await setHabitDirection(key, direction);
     refresh();
+  }
+
+  async function handleFindPatterns() {
+    setPatternsState({ busy: true, message: null });
+    try {
+      const r = await findPatterns();
+      setPatternsState({ busy: false, message: r.ok ? null : `Couldn't read them: ${r.error}` });
+      await refresh();
+    } catch (e) {
+      setPatternsState({ busy: false, message: `Couldn't read them: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  }
+
+  async function handleTrackSuggestion(s: Suggestion, name: string) {
+    await addTrackedHabit(name, today);
+    if (s.kind === "cut back") await setHabitDirection(name, "less");
+    await refresh();
   }
 
   const timedNights = countTimedNights(data.checkins);
@@ -361,6 +402,9 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
           onPinDiscovered={handlePinDiscovered}
           onDismiss={handleDismiss}
           onDirection={handleDirection}
+          patterns={data.patterns}
+          patternsState={patternsState}
+          onFindPatterns={handleFindPatterns}
         />
       ) : (
         <LockedModule
@@ -467,6 +511,26 @@ export default function Insights({ onOpenJournal }: { onOpenJournal: (focus: Jou
           entryDates={entryDates}
           onOpen={(label, dates) => onOpenJournal({ label: `review: ${label}`, dates })}
           onChanged={refresh}
+          topics={data.topics}
+          onTopicStatus={async (key, status) => {
+            await setTopicStatus(key, status);
+            refresh();
+          }}
+          onTopicRemove={async (key) => {
+            await deleteTopic(key);
+            refresh();
+          }}
+        />
+      )}
+
+      {/* P. suggestions, built on what goes together in their days */}
+      {!data.hidden.has("suggestions") && (
+        <SuggestionsModule
+          patterns={data.patterns}
+          state={patternsState}
+          trackedHabits={new Set(data.habitObservations.filter((o) => o.pinned === 1).map((o) => o.key.trim().toLowerCase()))}
+          onFind={handleFindPatterns}
+          onTrack={handleTrackSuggestion}
         />
       )}
     </div>

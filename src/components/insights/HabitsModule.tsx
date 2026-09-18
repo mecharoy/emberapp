@@ -8,13 +8,14 @@ import {
   type HabitDayState,
 } from "../../insights/stats";
 import type { HabitPref, Observation } from "../../db/types";
+import { linksForHabit, type Patterns } from "../../ai/patterns";
 import { ModuleCard } from "./ModuleCard";
 import { CHROME, EMBER_RAMP, HABIT_LESS } from "./palette";
 
 const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 const canon = (k: string) => k.trim().toLowerCase();
 
-/** How each kind of day is drawn on the paper. Four states, four looks. */
+/** How each kind of day is drawn on the paper. */
 const CELL = {
   doneText: CHROME.surface,
   skipped: { boxShadow: `inset 0 0 0 1.5px ${CHROME.muted}`, color: "#564e45" },
@@ -33,24 +34,23 @@ function shiftMonth(month: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-const STATE_TEXT: Record<HabitDayState, string> = {
-  done: "done",
-  skipped: "you said you skipped it",
-  unmentioned: "journaled, not mentioned",
-  "no-entry": "no journal that day",
-  future: "",
-};
+function stateText(state: HabitDayState, less: boolean): string {
+  switch (state) {
+    case "done":
+      return less ? "did it" : "done";
+    case "skipped":
+      return less ? "said you didn't" : "said you skipped it";
+    case "unmentioned":
+      return "journaled, didn't come up";
+    case "no-entry":
+      return "no journal that day";
+    default:
+      return "";
+  }
+}
 
-/** One calendar month for one habit. Every day says which of four things is
- * true — the old 15-week strip drew "didn't do it", "didn't mention it" and
- * "didn't journal" as the same grey square. */
-function MonthHeatMap({
-  cells,
-  less,
-}: {
-  cells: ReturnType<typeof habitMonthCells>;
-  less: boolean;
-}) {
+/** One calendar month for one habit. */
+function MonthHeatMap({ cells, less }: { cells: ReturnType<typeof habitMonthCells>; less: boolean }) {
   const doneColor = less ? HABIT_LESS : EMBER_RAMP[3];
   return (
     <div className="grid w-fit grid-cols-7 gap-1 text-center text-[10.5px] tabular-nums">
@@ -74,7 +74,7 @@ function MonthHeatMap({
         return (
           <span
             key={c.date}
-            title={c.state === "future" ? c.date : `${c.date}: ${STATE_TEXT[c.state]}`}
+            title={c.state === "future" ? c.date : `${c.date}: ${stateText(c.state, less)}`}
             className="flex h-6 w-6 items-center justify-center rounded-[5px]"
             style={style}
           >
@@ -86,14 +86,23 @@ function MonthHeatMap({
   );
 }
 
-function Legend() {
-  const swatch = (style: React.CSSProperties) => <span className="inline-block h-2.5 w-2.5 rounded-[3px]" style={style} />;
+/** What the squares mean. The filled colour depends on the habit's goal, so
+ *  both are explained whenever both kinds are pinned. */
+function Legend({ anyMore, anyLess }: { anyMore: boolean; anyLess: boolean }) {
+  const swatch = (style: React.CSSProperties) => <span className="inline-block h-3 w-3 shrink-0 rounded-[3px]" style={style} />;
+  const item = (style: React.CSSProperties, text: string) => (
+    <span className="flex items-center gap-1.5">
+      {swatch(style)}
+      {text}
+    </span>
+  );
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-faint">
-      <span className="flex items-center gap-1.5">{swatch({ background: EMBER_RAMP[3] })} done</span>
-      <span className="flex items-center gap-1.5">{swatch({ boxShadow: CELL.skipped.boxShadow })} said skipped</span>
-      <span className="flex items-center gap-1.5">{swatch({ background: CELL.unmentioned.background })} journaled, not mentioned</span>
-      <span className="flex items-center gap-1.5">{swatch({ boxShadow: CELL.noEntry.boxShadow })} no journal</span>
+    <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[12px] text-ink-soft">
+      {anyMore && item({ background: EMBER_RAMP[3] }, "done (a habit you're building)")}
+      {anyLess && item({ background: HABIT_LESS }, "did it (a habit you're cutting back)")}
+      {item({ boxShadow: CELL.skipped.boxShadow }, "you said you didn't")}
+      {item({ background: CELL.unmentioned.background }, "journaled, didn't come up")}
+      {item({ boxShadow: CELL.noEntry.boxShadow }, "no journal that day")}
     </div>
   );
 }
@@ -104,6 +113,9 @@ export default function HabitsModule({
   journaledDates,
   habitObservations,
   habitPrefs,
+  patterns,
+  patternsState,
+  onFindPatterns,
   onPin,
   onPinDiscovered,
   onDismiss,
@@ -114,6 +126,10 @@ export default function HabitsModule({
   journaledDates: Set<string>;
   habitObservations: Observation[]; // kind='habit'
   habitPrefs: HabitPref[];
+  /** What each habit goes with, read by the model (ai/patterns.ts). */
+  patterns: Patterns | null;
+  patternsState: { busy: boolean; message: string | null };
+  onFindPatterns: () => void;
   onPin: (obs: Observation, pinned: boolean) => void;
   onPinDiscovered: (key: string) => void;
   onDismiss: (key: string, dismissed: boolean) => void;
@@ -129,6 +145,9 @@ export default function HabitsModule({
   const discovered = discoveredHabits(rows, dismissed).filter((h) => !pinnedKeys.has(canon(h.key)));
   const visibleDiscovered = showAllDiscovered ? discovered : discovered.slice(0, 6);
   const isCurrentMonth = month >= todayKey.slice(0, 7);
+  const isLess = (key: string) => prefByKey.get(canon(key))?.direction === "less";
+  const anyLess = pinned.some((o) => isLess(o.key));
+  const anyMore = pinned.some((o) => !isLess(o.key));
 
   return (
     <ModuleCard
@@ -152,108 +171,139 @@ export default function HabitsModule({
         ) : undefined
       }
     >
-      {pinned.length === 0 && (
-        <p className="hint mb-4 max-w-xl">Pin one to track it day by day.</p>
+      {pinned.length === 0 && <p className="hint mb-4 max-w-xl">Pin one to track it day by day.</p>}
+
+      {pinned.length > 0 && (
+        <div className="mb-4 flex flex-col gap-2">
+          <Legend anyMore={anyMore} anyLess={anyLess} />
+          <div className="flex flex-wrap items-center gap-3">
+            <button onClick={onFindPatterns} disabled={patternsState.busy} className="btn-chip">
+              {patternsState.busy ? "Reading your days…" : patterns ? "Look for links again" : "Find what each habit goes with"}
+            </button>
+            {patternsState.message && <span className="text-[12.5px] text-ink-faint">{patternsState.message}</span>}
+          </div>
+        </div>
       )}
 
       <div className="flex flex-col divide-y divide-rule">
         {pinned.map((obs) => {
-          const key = canon(obs.key);
-          const less = prefByKey.get(key)?.direction === "less";
+          const less = isLess(obs.key);
           const d = habitDetail(rows, obs.key, todayKey);
           const cells = habitMonthCells(d, journaledDates, month, todayKey);
           const inMonth = cells.filter((c) => c && c.state !== "future" && c.state !== "no-entry");
           const doneInMonth = inMonth.filter((c) => c!.state === "done").length;
           const sinceLast = d.lastDone ? daysBetween(d.lastDone, todayKey) : null;
+          const links = linksForHabit(patterns, obs.key);
           return (
-            <div key={obs.id} className="py-4 first:pt-0">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <span className="font-serif text-[16px] text-ink">{obs.key}</span>
-                  <div className="flex gap-0.5 rounded-md border border-rule p-0.5">
-                    {(["more", "less"] as const).map((dir) => (
-                      <button
-                        key={dir}
-                        onClick={() => onDirection(obs.key, dir === "less" ? "less" : null)}
-                        aria-pressed={(dir === "less") === less}
-                        className="seg"
-                        title={dir === "less" ? "Something you want to do less of" : "Something you want to do more of"}
-                      >
-                        want {dir}
-                      </button>
-                    ))}
+            <div key={obs.id} className="flex flex-col gap-4 py-5 first:pt-0 md:flex-row md:gap-8">
+              <div className="flex shrink-0 flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-serif text-[17px] text-ink">{obs.key}</span>
+                  <div className="flex items-center gap-1.5 text-[12px] text-ink-faint">
+                    Goal
+                    <div className="flex gap-0.5 rounded-md border border-rule p-0.5" role="group" aria-label={`Goal for ${obs.key}`}>
+                      {([false, true] as const).map((wantLess) => (
+                        <button
+                          key={String(wantLess)}
+                          onClick={() => onDirection(obs.key, wantLess ? "less" : null)}
+                          aria-pressed={wantLess === less}
+                          className="seg px-2 py-1 text-[12px]"
+                          title={wantLess ? "Something you want to do less of" : "Something you want to do more of"}
+                        >
+                          {wantLess ? "cut back" : "build up"}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 text-[12px] text-ink-faint">
+                <MonthHeatMap cells={cells} less={less} />
+              </div>
+
+              <div className="flex min-w-0 flex-1 flex-col gap-3">
+                <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-ink-soft">
                   {less ? (
-                    <span>{sinceLast === null ? "not recorded yet" : sinceLast === 0 ? "today" : `last ${sinceLast}d ago`}</span>
+                    <span>
+                      Last did it: {sinceLast === null ? "not recorded yet" : sinceLast === 0 ? "today" : `${sinceLast} days ago`}
+                    </span>
                   ) : (
-                    d.currentStreak > 0 && (
-                      <span>
-                        {d.currentStreak} {d.currentStreak === 1 ? "day" : "days"} in a row
-                      </span>
-                    )
+                    <span>
+                      In a row: {d.currentStreak} {d.currentStreak === 1 ? "day" : "days"}
+                    </span>
                   )}
                   <span>
-                    {doneInMonth} of {inMonth.length} journaled day{inMonth.length === 1 ? "" : "s"}
+                    This month: {doneInMonth} of {inMonth.length} journaled day{inMonth.length === 1 ? "" : "s"}
                   </span>
-                  <button onClick={() => onPin(obs, false)} className="hover:text-ink">
-                    unpin
+                </div>
+
+                {d.effect && (
+                  <p className="text-[13px] leading-snug text-ink-soft">
+                    Mood on days with it: {d.effect.withAvg.toFixed(1)}, without: {d.effect.withoutAvg.toFixed(1)} (
+                    {d.effect.nWith} and {d.effect.nWithout} days). Worth watching, not proof.
+                  </p>
+                )}
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="font-serif text-[14px] italic text-ink-faint">Goes with</span>
+                  {links.length > 0 ? (
+                    <ul className="flex flex-col gap-1.5">
+                      {links.map((l) => (
+                        <li key={l.linked_to} className="text-[13.5px] leading-snug">
+                          <span className="text-ink">{l.linked_to}</span>
+                          <span className="block text-[12.5px] text-ink-faint">{l.how}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-[12.5px] text-ink-faint">
+                      {patterns ? "No clear link in your recent days." : "Not looked for yet."}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-auto flex flex-wrap gap-2 pt-1">
+                  <button onClick={() => onPin(obs, false)} className="btn-chip">
+                    Unpin
                   </button>
                   <button
                     onClick={() => {
                       onPin(obs, false);
                       onDismiss(obs.key, true);
                     }}
-                    className="hover:text-danger"
+                    className="btn-chip danger"
                     title="Stop tracking this and never count it as a habit"
                   >
-                    not a habit
+                    Not a habit
                   </button>
                 </div>
               </div>
-              <MonthHeatMap cells={cells} less={less} />
-              {d.effect && (
-                <p className="mt-3 text-[12.5px] text-ink-soft">
-                  Days with {obs.key} average mood {d.effect.withAvg.toFixed(1)}, against {d.effect.withoutAvg.toFixed(1)}{" "}
-                  without (n={d.effect.nWith}/{d.effect.nWithout}). Worth watching, not proof.
-                </p>
-              )}
             </div>
           );
         })}
       </div>
-      {pinned.length > 0 && (
-        <div className="mt-1">
-          <Legend />
-        </div>
-      )}
 
       {discovered.length > 0 && (
         <div className="mt-5">
-          <p className="hint mb-2">Spotted in your entries. Pin it, or &times; if it isn&rsquo;t a habit.</p>
+          <p className="hint mb-2">Spotted in your entries. Pin one to track it, or &times; if it isn&rsquo;t a habit.</p>
           <ul className="flex flex-wrap gap-1.5">
-            {visibleDiscovered.map((h) => {
-              return (
-                <li key={h.key} className="flex items-center overflow-hidden rounded-full border border-rule text-[12.5px]">
-                  <button
-                    onClick={() => onPinDiscovered(h.key)}
-                    className="py-1 pl-3 pr-1.5 text-ink-soft transition-colors hover:text-ember"
-                    title="Pin this habit"
-                  >
-                    + {h.key} <span className="tabular-nums text-ink-faint">{h.count}&times;</span>
-                  </button>
-                  <button
-                    onClick={() => onDismiss(h.key, true)}
-                    className="border-l border-rule px-2 py-1 text-ink-faint transition-colors hover:text-danger"
-                    aria-label={`${h.key} is not a habit`}
-                    title="Not a habit. Hide it and stop counting it."
-                  >
-                    &times;
-                  </button>
-                </li>
-              );
-            })}
+            {visibleDiscovered.map((h) => (
+              <li key={h.key} className="flex items-center overflow-hidden rounded-full border border-rule-strong text-[12.5px]">
+                <button
+                  onClick={() => onPinDiscovered(h.key)}
+                  className="py-1 pl-3 pr-1.5 text-ink-soft transition-colors hover:bg-paper-deep hover:text-ink"
+                  title="Pin this habit"
+                >
+                  + {h.key} <span className="tabular-nums text-ink-faint">{h.count}&times;</span>
+                </button>
+                <button
+                  onClick={() => onDismiss(h.key, true)}
+                  className="border-l border-rule px-2 py-1 text-ink-faint transition-colors hover:bg-danger-wash hover:text-danger"
+                  aria-label={`${h.key} is not a habit`}
+                  title="Not a habit. Hide it and stop counting it."
+                >
+                  &times;
+                </button>
+              </li>
+            ))}
           </ul>
           {discovered.length > 6 && (
             <button onClick={() => setShowAllDiscovered((v) => !v)} className="btn-ghost -ml-2.5 mt-1.5">
@@ -264,18 +314,19 @@ export default function HabitsModule({
       )}
 
       {dismissed.size > 0 && (
-        <p className="mt-4 text-[12px] text-ink-faint">
-          Not habits:{" "}
-          {Array.from(dismissed).map((k, i) => (
-            <span key={k}>
-              {i > 0 && " · "}
-              {k}{" "}
-              <button onClick={() => onDismiss(k, false)} className="underline-offset-2 hover:text-ink hover:underline">
-                restore
-              </button>
-            </span>
-          ))}
-        </p>
+        <div className="mt-5 flex flex-col gap-2">
+          <span className="text-[12.5px] text-ink-faint">Not habits</span>
+          <ul className="flex flex-wrap gap-2">
+            {Array.from(dismissed).map((k) => (
+              <li key={k} className="flex items-center gap-2 text-[13px] text-ink-soft">
+                {k}
+                <button onClick={() => onDismiss(k, false)} className="btn-chip min-h-[26px] px-2.5 py-0.5 text-[12px]">
+                  Restore
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {pinned.length === 0 && discovered.length === 0 && dismissed.size === 0 && (

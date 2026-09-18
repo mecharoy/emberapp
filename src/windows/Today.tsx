@@ -113,7 +113,7 @@ export default function Today({
         {captures !== null && captures.length === 0 && (
           <p className="text-[14px] leading-relaxed text-ink-soft">
             {isToday
-              ? "Nothing jotted down yet. Drop a note whenever something happens. Tonight’s conversation starts from them."
+              ? "Nothing jotted down yet. Drop a note whenever something happens. The conversation starts along with them."
               : "No notes are waiting from that day."}
           </p>
         )}

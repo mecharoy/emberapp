@@ -167,19 +167,20 @@ export default function EntryFields({
         <span className="hand-label">What stood out</span>
         <ul>
           {draft.highlights.map((h, i) => (
-            <li key={i} className="flex items-start" style={{ height: RULE }}>
-              <span className="hand w-5 shrink-0 select-none" aria-hidden="true">
+            <li key={i} className="flex items-start">
+              <span className="hand w-5 shrink-0 select-none" style={{ height: RULE }} aria-hidden="true">
                 &bull;
               </span>
-              <input
-                className="hand hand-field min-w-0 flex-1"
-                style={{ height: RULE }}
+              {/* Wraps onto the next ruled line instead of scrolling sideways. */}
+              <GrowingText
+                minLines={1}
                 value={h}
-                onChange={(e) => {
+                onChange={(v) => {
                   const next = draft.highlights.slice();
-                  next[i] = e.target.value;
+                  next[i] = v.replace(/\n/g, " ");
                   update("highlights", next);
                 }}
+                className="min-w-0 flex-1"
               />
               <button
                 onClick={() => update("highlights", draft.highlights.filter((_, idx) => idx !== i))}

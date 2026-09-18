@@ -21,15 +21,28 @@ describe("counselorSystemPrompt", () => {
     documents: ["--- about-me.md ---", "Runs to clear their head.", "--- end of about-me.md ---"].join("\n"),
     dayParts: ["1. waking up (07:10) → lunch (13:00)", "2. lunch (13:00) → evening break (18:30)", "3. evening break (18:30) → now — dinner not yet"].join("\n"),
     style: DEFAULT_STYLE as ConversationStyle,
+    topics: "- [dispute-with-dad] Dispute with Dad, last talked about 2026-07-06\n    They argued about the move.\n    next: whether they called him",
     daysSinceLastEntry: 1,
   };
 
-  it("walks the day in its parts before going deep", () => {
-    const prompt = counselorSystemPrompt(layers);
-    expect(prompt).toContain("Their day in parts");
-    expect(prompt).toContain("one part per question, in order");
-    expect(prompt).toContain("Once every part has been covered, pick the ONE thing");
-    expect(prompt).toContain("In a quick session, walk the day in two questions");
+  it("works through the checklist in coach and therapist styles, with its covered marker", () => {
+    const coach = counselorSystemPrompt(layers);
+    expect(coach).toContain("Their day in parts");
+    expect(coach).toContain("HOW THE CONVERSATION FLOWS — coach");
+    expect(coach).toContain("[[covered|ID]]");
+    expect(coach).toContain("Never raise\n  them.");
+    expect(coach).toContain("Dispute with Dad");
+    const therapist = counselorSystemPrompt({ ...layers, style: { tone: "gentle", approach: "therapist" } });
+    expect(therapist).toContain("HOW THE CONVERSATION FLOWS — therapist-style");
+    expect(therapist).toContain("event → feeling → thought →\n    need");
+  });
+
+  it("keeps friend mode free-flowing: no checklist, no topics", () => {
+    const friend = counselorSystemPrompt({ ...layers, style: { tone: "balanced", approach: "friend" } });
+    expect(friend).toContain("HOW THE CONVERSATION FLOWS — friend");
+    expect(friend).toContain("There is no checklist");
+    expect(friend).not.toContain("[[covered|");
+    expect(friend).not.toContain("Dispute with Dad");
   });
 
   it("falls back to the default style for unknown settings", () => {
@@ -40,7 +53,7 @@ describe("counselorSystemPrompt", () => {
   it("carries the tone and approach they picked, and the approach sets the pattern limit", () => {
     const friend = counselorSystemPrompt({ ...layers, style: { tone: "gentle", approach: "friend" } });
     expect(friend).toContain("- Tone: Gentle. Soft, unhurried");
-    expect(friend).toContain("- Approach: Friend. Mostly listen");
+    expect(friend).toContain("- Approach: Friend. A free-flowing chat");
     expect(friend).toContain("Max ONE reference to past patterns");
     const therapist = counselorSystemPrompt({ ...layers, style: { tone: "blunt", approach: "therapist" } });
     expect(therapist).toContain("- Tone: Blunt.");
@@ -54,15 +67,14 @@ describe("counselorSystemPrompt", () => {
   it("uses the check-in instead of asking for it again", () => {
     const prompt = counselorSystemPrompt(layers);
     expect(prompt).toContain("never ask for them again");
-    expect(prompt).toContain("what made it a 4 and not a 6?");
+    expect(prompt).toContain("what made it a 4 and");
   });
 
-  it("keeps a private checklist of what a full entry needs", () => {
+  it("talks like a counselor: reflections, no leading questions, no empty praise", () => {
     const prompt = counselorSystemPrompt(layers);
-    for (const item of ["The whole day, part by part", "Mood arc", "One thread in depth", "One win", "Body", "People", "Worries and loose ends"]) {
-      expect(prompt).toContain(item);
-    }
-    expect(prompt).toContain("never fire the other items off as a list");
+    expect(prompt).toContain("Reflect before you ask");
+    expect(prompt).toContain('Never end with\n  "right?"');
+    expect(prompt).toContain('No "that\'s great!"');
   });
 
   it("teaches the write-journal marker, only after they agree or ask", () => {
@@ -84,8 +96,8 @@ describe("counselorSystemPrompt", () => {
     expect(counselorSystemPrompt(layers)).toMatchSnapshot();
   });
 
-  it("names tonight's date, which is stable for the whole session", () => {
-    expect(counselorSystemPrompt(layers)).toContain("Tonight is Thursday, 2026-07-09.");
+  it("names the day's date, which is stable for the whole session", () => {
+    expect(counselorSystemPrompt(layers)).toContain("Today is Thursday, 2026-07-09.");
   });
 
   it("re-points the prompt at an earlier day when looking back, and only then", () => {
@@ -97,7 +109,7 @@ describe("counselorSystemPrompt", () => {
       "This conversation is about Thursday, 2026-07-09, yesterday; today is really Friday, 2026-07-10.",
     );
     expect(prompt).toContain("LOOKING BACK");
-    expect(prompt).not.toContain("Tonight is Thursday");
+    expect(prompt).not.toContain("Today is Thursday");
     expect(counselorSystemPrompt(layers)).not.toContain("LOOKING BACK");
   });
 
@@ -107,8 +119,8 @@ describe("counselorSystemPrompt", () => {
   it("is byte-identical across turns, holding nothing that moves", () => {
     const first = counselorSystemPrompt(layers);
     expect(counselorSystemPrompt({ ...layers })).toBe(first);
-    expect(first).not.toMatch(/d{2}:d{2}/);
-    expect(first).not.toContain("exchanges into tonight");
+    expect(first).not.toContain("the time right now");
+    expect(first).not.toContain("exchanges into this conversation");
   });
 
   it("acknowledges multi-day gaps without guilt, and handles the first session", () => {
@@ -120,7 +132,7 @@ describe("counselorSystemPrompt", () => {
 
   it("degrades gracefully when no name is set", () => {
     const prompt = counselorSystemPrompt({ ...layers, userName: "" });
-    expect(prompt).toContain("someone's private evening companion");
+    expect(prompt).toContain("someone's private companion");
   });
 
   it("teaches the reminder marker, gated to explicit requests only", () => {
@@ -144,7 +156,7 @@ describe("counselorTurnPreamble", () => {
       lengthPreference: "standard",
     });
     expect(standard).toContain("the time right now is 21:15");
-    expect(standard).toContain("3 exchanges into tonight's session");
+    expect(standard).toContain("3 exchanges into this conversation");
     expect(standard).toContain("standard — around 8-10 exchanges");
   });
 
@@ -154,7 +166,7 @@ describe("counselorTurnPreamble", () => {
       exchangeCount: 1,
       lengthPreference: "quick",
     });
-    expect(quick).toContain("1 exchange into tonight's session");
+    expect(quick).toContain("1 exchange into this conversation");
     expect(quick).not.toContain("1 exchanges");
     expect(quick).toContain("quick — wrap within 3-4 exchanges");
   });
@@ -166,6 +178,18 @@ describe("counselorTurnPreamble", () => {
       lengthPreference: "standard",
     });
     expect(preamble).toContain("from the app, not from them");
+    expect(preamble).not.toContain("checklist");
+  });
+
+  it("offers a long length and carries the checklist as it stands", () => {
+    const preamble = counselorTurnPreamble({
+      nowTime: "20:00",
+      exchangeCount: 2,
+      lengthPreference: "long",
+      agenda: "\n  t1 (today, open): the lab mess",
+    });
+    expect(preamble).toContain("long — take your time, around 15-20 exchanges");
+    expect(preamble).toContain("Today's checklist: \n  t1 (today, open): the lab mess");
   });
 });
 
@@ -187,7 +211,7 @@ describe("buildJournalUserPrompt", () => {
   it("uses empty-state placeholders and second-person voice by default", () => {
     const prompt = buildJournalUserPrompt({ captures: [], transcript: [], voice: "second" });
     expect(prompt).toContain("(no captures today)");
-    expect(prompt).toContain("(no conversation tonight)");
+    expect(prompt).toContain("(no conversation today)");
     expect(prompt).toContain("second person");
     expect(prompt).toContain("(no profile yet");
   });

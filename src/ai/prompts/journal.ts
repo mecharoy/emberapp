@@ -11,9 +11,11 @@ export interface JournalPromptInput {
   captures: Pick<Capture, "created_at" | "text" | "mood_emoji">[];
   transcript: Pick<Message, "role" | "content">[];
   profileSummary?: string;
-  /** Their evening check-in, formatted by ai/checkin.ts. */
+  /** Their check-in, formatted by ai/checkin.ts. */
   checkIn?: string;
   voice: "first" | "second";
+  /** A sample of their own writing from Settings; the entry copies its voice. */
+  writingStyle?: string;
   feedbackNote?: string;
   /** The entry being regenerated — without it, feedback like "make it
    * shorter" has no referent. */
@@ -30,12 +32,12 @@ function formatCapturesForPrompt(
 }
 
 function formatTranscriptForPrompt(transcript: JournalPromptInput["transcript"]): string {
-  if (transcript.length === 0) return "(no conversation tonight)";
+  if (transcript.length === 0) return "(no conversation today)";
   return transcript.map((m) => `${m.role === "user" ? "User" : "Ember"}: ${m.content}`).join("\n\n");
 }
 
 export const JOURNAL_SYSTEM_PROMPT = `You are Ember's journal-writing module.
-You turn the day's raw captures, their evening check-in and tonight's
+You turn the day's raw captures, their check-in and today's
 counselor conversation into a saved journal entry — the record they will
 reread months from now, so it should let them relive the day, not just
 summarise it.
@@ -57,7 +59,7 @@ prose in short paragraphs (no headings, no lists inside the narrative):
 2. How it felt — the mood arc and where it turned, in their own feeling
    words where they gave any, and their check-in numbers if given ("a 4 out
    of 10 kind of day").
-3. The main thread — what mattered most tonight, and what they realised
+3. The main thread — what mattered most today, and what they realised
    about it while talking.
 4. Body and energy — sleep, movement, food, tiredness, when mentioned.
 5. People — who was part of the day and how those moments felt.
@@ -67,7 +69,7 @@ Skip any part nothing in the material supports. Never pad a part to fill it.
 
 GROUNDING
 Ground every sentence in something actually captured, entered in the
-check-in, or said tonight. Never invent events, feelings, or details that
+check-in, or said in the conversation. Never invent events, feelings, or details that
 weren't there. If the conversation was short or thin, write a short, honest
 entry rather than manufacturing depth — a tired one-line session deserves a
 tired one-line entry, not embellishment.
@@ -110,6 +112,15 @@ Counselor's note: ${input.previousEntry.counselorNote || "(none)"}`
     ? `\n\nThe user asked for this entry to be regenerated with the following feedback. Obey it visibly: "${input.feedbackNote.trim()}"`
     : "";
 
+  const style = input.writingStyle?.trim()
+    ? `\n\nTHEIR WRITING STYLE — a sample of their own writing. Write "narrative" and "highlights" the way they write:
+match their sentence length, word choice, punctuation, rhythm and humour, and how plain or vivid they are.
+Take only the voice from it, never its events, people or facts. The voice rule above (first or second person) still applies.
+<sample>
+${input.writingStyle.trim().slice(0, 6000)}
+</sample>`
+    : "";
+
   return `${formatDateLine(input.date)}PROFILE (long-term context):
 ${input.profileSummary ?? EMPTY_PROFILE_SUMMARY}
 
@@ -119,8 +130,8 @@ ${input.checkIn ?? "(not filled in today)"}
 CAPTURES (today's, plus any earlier day that was never written up):
 ${formatCapturesForPrompt(input.captures, input.date)}
 
-TONIGHT'S CONVERSATION:
-${formatTranscriptForPrompt(input.transcript)}${previous}
+TODAY'S CONVERSATION:
+${formatTranscriptForPrompt(input.transcript)}${previous}${style}
 
 ${voiceLine}${feedback}
 

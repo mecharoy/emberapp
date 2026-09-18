@@ -4,6 +4,9 @@ interface EmberAndroid {
   isQuickNoteEnabled(): boolean;
   setQuickNoteEnabled(enabled: boolean): void;
   refreshQuickNote(): void;
+  /** Reminders at the usual lunch, break and dinner times, answered in the
+   *  notification (DayReminders.kt). JSON {enabled, lunch, break, dinner}. */
+  setDayReminders?(config: string): void;
   /** Android 10+: copies can go to Documents/Ember without a permission. */
   backupCopySupported(): boolean;
   /** Empty file path in the app cache for VACUUM INTO. */

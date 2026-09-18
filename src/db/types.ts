@@ -112,6 +112,44 @@ export interface CheckIn {
   lunch: string | null;
   evening_break: string | null;
   dinner: string | null;
+  /** What they did in each stretch of the day (migration 0013): JSON
+   *  {"morning" | "afternoon" | "evening" | "night": text}. */
+  day_notes: string | null;
+}
+
+/** One line of the conversation checklist (migration 0013). */
+export interface AgendaItem {
+  id: string;
+  section: "past" | "today" | "future";
+  text: string;
+  /** open: still to talk about; done: covered; skip: they don't want to talk about it. */
+  state: "open" | "done" | "skip";
+  /** The topic it belongs to (topics.key), when there is one. */
+  topic?: string | null;
+}
+
+export interface SessionAgenda {
+  date: string;
+  items: string; // JSON AgendaItem[]
+  created_at: string;
+  updated_at: string;
+  /** Migration 0014: the preparation step's briefing (small models). */
+  briefing: string | null;
+  /** Summary of the chat before message number summary_upto (small models). */
+  chat_summary: string | null;
+  summary_upto: number;
+}
+
+/** Something they are working through, kept across conversations (migration 0013). */
+export interface Topic {
+  key: string;
+  title: string;
+  status: "open" | "resolved" | "avoid";
+  notes: string;
+  next_step: string;
+  first_seen: string;
+  last_discussed: string | null;
+  updated_at: string;
 }
 
 export type Instrument = "who5" | "phq9" | "gad7";
@@ -158,6 +196,7 @@ export type SettingKey =
   | "api_base"
   | "api_key" // legacy pre-Phase-6 location; migrated to the OS keychain on first read
   | "cloud_api_base" // full chat-completions URL of the chosen free provider
+  | "openai_api_key" // keychain fallback only, like cloud_api_key
   | "cloud_api_key" // keychain fallback only (systems with no OS credential store)
   | "cloud_max_tokens" // ceiling on one reply; empty means use the preset's
   | "reminder_time"
@@ -179,8 +218,16 @@ export type SettingKey =
   | "update_auto_check" // "1" = look for a newer release when Ember opens
   | "update_checked_at" // ISO timestamp of the last successful look
   | "update_dismissed_version" // a release the user said "later" to; not offered again on launch
+  | "last_seen_version" // the version whose "What's new" card was last shown or skipped
   | "journal_paper" // default paper for journal entries (components/paper.ts id)
   | "backup_copy" // "1" = keep a daily copy in Documents/Ember
   | "backup_last_at" // ISO timestamp of the last copy written
   | "install_id" // random id of the install this journal belongs to; see src/install.ts
-  | "jobs_last_error"; // what the last background review run couldn't write, "" if nothing
+  | "jobs_last_error" // what the last background review run couldn't write, "" if nothing
+  | "usual_lunch" // "HH:MM" their usual lunch, asked at setup
+  | "usual_break" // "HH:MM" their usual afternoon/evening break
+  | "usual_dinner" // "HH:MM" their usual dinner
+  | "day_reminders" // "1" = a note reminder at those three times (DayReminders.kt)
+  | "writing_style_sample" // their own writing, so entries sound like them
+  | "context_mode" // auto | full | compact: how much Ember sends the model (ai/budget.ts); this device only
+  | "insight_patterns"; // JSON: links and suggestions from ai/patterns.ts

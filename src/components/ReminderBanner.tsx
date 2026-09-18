@@ -53,7 +53,7 @@ export default function ReminderBanner({ onTalk }: { onTalk?: () => void }) {
           In an hour
         </button>
         <button onClick={handleSkip} className="btn-ghost min-h-[38px] px-2.5">
-          Not tonight
+          Not today
         </button>
       </div>
     </div>

@@ -159,6 +159,9 @@ export async function deleteEverything(): Promise<void> {
     "documents",
     "checkins",
     "habit_prefs",
+    "session_agendas",
+    "topics",
+    "memory_files",
     "sessions",
     "reminders",
   ]) {
