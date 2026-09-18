@@ -84,3 +84,83 @@ export async function saveCheckIn(input: CheckInInput): Promise<void> {
     ],
   );
 }
+
+/** The three points of the day the reminders ask about, and the stretch of
+ *  the day each one closes. */
+export const DAY_POINTS = [
+  { id: "lunch", column: "lunch", stretch: "morning" },
+  { id: "break", column: "evening_break", stretch: "afternoon" },
+  { id: "dinner", column: "dinner", stretch: "evening" },
+] as const;
+
+export type DayPointId = (typeof DAY_POINTS)[number]["id"];
+
+export function dayPoint(id: string): (typeof DAY_POINTS)[number] | undefined {
+  return DAY_POINTS.find((p) => p.id === id);
+}
+
+/** Whether that day already has an answer for this point, so its reminder can
+ *  be left out. "not-yet" counts as unanswered. */
+export function isDayPointAnswered(checkIn: CheckIn | null, id: DayPointId): boolean {
+  const point = dayPoint(id);
+  if (!checkIn || !point) return false;
+  const value = (checkIn as unknown as Record<string, string | null>)[point.column];
+  return Boolean(value) && value !== "not-yet";
+}
+
+/**
+ * Writes one answer from a day reminder into that day's check-in: the time it
+ * was answered (or "skipped"), unless something is already there, and what
+ * they say they did in the stretch before it, added after anything already
+ * written for that stretch. Everything else on the check-in is left alone —
+ * this runs while the form itself may be half-filled.
+ */
+export async function recordDayPoint(
+  date: string,
+  id: DayPointId,
+  text: string | null,
+  skipped: boolean,
+  at: Date = new Date(),
+): Promise<void> {
+  const point = dayPoint(id);
+  if (!point) return;
+  const db = await getDb();
+  const now = localStamp(at);
+  const value = skipped ? "skipped" : now.slice(11, 16);
+  const trimmed = (text ?? "").trim();
+
+  const existing = await getCheckIn(date);
+  let notes: Record<string, string> = {};
+  if (existing?.day_notes) {
+    try {
+      const parsed = JSON.parse(existing.day_notes);
+      if (parsed && typeof parsed === "object") notes = parsed as Record<string, string>;
+    } catch {
+      // Unreadable notes are replaced rather than losing the new line.
+    }
+  }
+  if (trimmed) {
+    const before = (notes[point.stretch] ?? "").trim();
+    notes[point.stretch] = before ? `${before}\n${trimmed}` : trimmed;
+  }
+  const notesJson = Object.keys(notes).length === 0 ? null : JSON.stringify(notes);
+
+  if (existing) {
+    await db.execute(
+      `UPDATE checkins
+          SET day_notes = COALESCE($1, day_notes),
+              ${point.column} = CASE
+                WHEN ${point.column} IS NULL OR ${point.column} = '' OR ${point.column} = 'not-yet'
+                THEN $2 ELSE ${point.column} END,
+              updated_at = $3
+        WHERE date = $4`,
+      [notesJson, value, now, date],
+    );
+  } else {
+    await db.execute(
+      `INSERT INTO checkins (date, habits, created_at, updated_at, ${point.column}, day_notes)
+       VALUES ($1, '{}', $2, $2, $3, $4)`,
+      [date, now, value, notesJson],
+    );
+  }
+}

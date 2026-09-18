@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
-import { androidBridge } from "./androidBridge";
+import { backupCopySupported as nativeCopySupported, backupSnapshotPath, saveBackupCopy } from "./nativeBridge";
 import { closeDb } from "./db/client";
 import { noteJournalRestore } from "./lan/syncEvents";
 import { hasJournalData, readStagedBackup, snapshotDatabase, type BackupSummary } from "./db/backup";
@@ -9,17 +9,20 @@ import { getSetting, setSetting } from "./db/settings";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Backups to Documents/Ember work on this phone. */
+/** Where the copy lands, in the words the Files app uses. */
+export const BACKUP_LOCATION = "Files › On My iPhone › Ember";
+
+/** Backup copies always work on iPhone: every one has the Files app. */
 export function backupCopySupported(): boolean {
-  return androidBridge()?.backupCopySupported() ?? false;
+  return nativeCopySupported();
 }
 
-/** Writes Documents/Ember/Ember backup.db now. Throws with a readable message. */
+/** Writes "Ember backup.db" into Ember's folder in the Files app now.
+ *  Throws with a readable message. */
 export async function backupNow(): Promise<void> {
-  const bridge = androidBridge();
-  if (!bridge?.backupCopySupported()) throw new Error("Backup copies need Android 10 or newer.");
-  await snapshotDatabase(bridge.backupSnapshotPath());
-  const problem = bridge.saveBackupCopy();
+  const path = await backupSnapshotPath();
+  await snapshotDatabase(path);
+  const problem = await saveBackupCopy();
   if (problem) throw new Error(problem);
   await setSetting("backup_last_at", new Date().toISOString());
 }
@@ -28,7 +31,6 @@ export async function backupNow(): Promise<void> {
  *  there is something to keep. Failures wait for the next day. */
 export async function backupIfDue(): Promise<void> {
   try {
-    if (!backupCopySupported()) return;
     if ((await getSetting("backup_copy")) !== "1") return;
     const last = Date.parse(await getSetting("backup_last_at"));
     if (!Number.isNaN(last) && Date.now() - last < DAY_MS) return;
@@ -39,41 +41,32 @@ export async function backupIfDue(): Promise<void> {
   }
 }
 
-/** On Android the picker opens in Documents/Ember and MainActivity copies the
- *  file aside, answering through window.__emberBackupPicked. */
-function pickOnAndroid(bridge: NonNullable<ReturnType<typeof androidBridge>>): Promise<string> {
-  const w = window as unknown as { __emberBackupPicked?: (result: string) => void };
-  return new Promise((resolve) => {
-    w.__emberBackupPicked = (result) => {
-      delete w.__emberBackupPicked;
-      resolve(result);
-    };
-    bridge.pickBackup();
-  });
-}
-
-/** Asks for a backup file, copies it aside and says what's in it. Nothing is
- *  replaced yet. Returns null if nothing was picked; throws on a bad file. */
+/**
+ * Asks for a backup file, copies it aside and says what's in it. Nothing is
+ * replaced yet. Returns null if nothing was picked; throws on a bad file.
+ *
+ * iOS answers the picker with a `file://` URI, which the fs plugin reads like
+ * any other path.
+ */
 export async function pickBackup(): Promise<BackupSummary | null> {
-  const bridge = androidBridge();
-  if (bridge) {
-    const result = await pickOnAndroid(bridge);
-    if (result === "cancel") return null;
-    if (result) throw new Error(result);
-  } else {
-    const picked = await open({ multiple: false, directory: false, title: "Pick your Ember backup" });
-    if (!picked) return null;
-    const bytes = await readFile(picked);
-    try {
-      await invoke("backup_stage", bytes);
-    } catch (e) {
-      throw new Error(String(e));
-    }
+  const picked = await open({ multiple: false, directory: false, title: "Pick your Ember backup" });
+  if (!picked) return null;
+  const bytes = await readFile(picked);
+  try {
+    await invoke("backup_stage", bytes);
+  } catch (e) {
+    throw new Error(String(e));
   }
   return readStagedBackup();
 }
 
-/** Puts the picked backup in place of the current journal and restarts Ember. */
+/**
+ * Puts the picked backup in place of the current journal.
+ *
+ * iOS apps may not close and open themselves, so unlike the Android edition
+ * this simply returns: the caller asks the user to close Ember and open it
+ * again, which is when the migrations run on the restored file.
+ */
 export async function restorePickedBackup(): Promise<void> {
   noteJournalRestore();
   await closeDb();
@@ -84,7 +77,4 @@ export async function restorePickedBackup(): Promise<void> {
     window.location.reload();
     throw new Error(String(e));
   }
-  const bridge = androidBridge();
-  if (bridge) bridge.restartApp();
-  else window.location.reload();
 }

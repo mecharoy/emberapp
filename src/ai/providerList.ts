@@ -5,7 +5,6 @@ export const PROVIDER_OPTIONS = [
   { id: "cloud", name: "Free hosted model", blurb: "Groq, Gemini or OpenRouter. Needs a free key." },
   { id: "anthropic", name: "Anthropic API", blurb: "Claude, pay as you go. Needs a key." },
   { id: "openai", name: "OpenAI API", blurb: "ChatGPT's models, pay as you go. Needs a key." },
-  { id: "pc", name: "Computer", blurb: "Whatever AI provider your paired computer uses." },
 ] as const;
 
 export function isKnownProvider(id: string): boolean {

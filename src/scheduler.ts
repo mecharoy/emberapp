@@ -1,16 +1,16 @@
-// Scheduler, phone edition. On the desktop a timer in
-// the always-running tray app fired every notification itself. Android stops
-// an app's timers soon after it leaves the screen, so here Android's own alarm
-// service rings instead: whenever the app is left, reopened, or a reminder or
-// the evening settings change, the next week of evening reminders and every
-// pending task reminder are handed to it (tauri-plugin-notification schedules
-// them, and puts them back after a reboot). The timer below only does
-// bookkeeping while the app is open.
+// Scheduler, iPhone edition. On the desktop a timer in the always-running
+// tray app fired every notification itself. iOS stops an app's timers as soon
+// as it leaves the screen, so the notification system rings instead: whenever
+// the app is left, reopened, or a reminder or the evening settings change, the
+// next week of evening reminders, the next week of day reminders and every
+// pending task reminder are handed over (tauri-plugin-notification schedules
+// them). The timer below only does bookkeeping while the app is open.
 
 import { emit, listen } from "@tauri-apps/api/event";
 import {
   cancel,
   isPermissionGranted,
+  onAction,
   pending,
   requestPermission,
   Schedule,
@@ -23,7 +23,8 @@ import { getSessionForDate, markMissedDaysSkipped } from "./db/sessions";
 import { getSetting, setSetting } from "./db/settings";
 import { runReviewJobsAndNotify } from "./ai/reviewJobs";
 import { addDays } from "./insights/stats";
-import { androidBridge } from "./androidBridge";
+import { handleDayReminderAction, registerDayReminderActions, syncDayReminders } from "./dayReminders";
+import { drainInboxIntoJournal } from "./inbox";
 
 const CHECK_MS = 30_000;
 
@@ -130,14 +131,11 @@ async function readReminderState(): Promise<ReminderState> {
   };
 }
 
-/** Asks Android once for permission to post notifications (Android 13+
- *  shows a prompt; older versions allow it by default). */
+/** Asks iOS once for permission to post notifications. Without it, every
+ *  reminder is silently dropped, so it is asked for as soon as setup ends. */
 export async function ensureNotificationPermission(): Promise<boolean> {
   try {
-    const granted = (await isPermissionGranted()) || (await requestPermission()) === "granted";
-    // The drawer's quick-note notification waits for this permission.
-    if (granted) androidBridge()?.refreshQuickNote();
-    return granted;
+    return (await isPermissionGranted()) || (await requestPermission()) === "granted";
   } catch {
     return false;
   }
@@ -146,7 +144,7 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 let syncing: Promise<void> | null = null;
 
 /**
- * Hands Android the reminders it should ring while Ember is closed. Replaces
+ * Hands iOS the reminders it should ring while Ember is closed. Replaces
  * whatever was handed over before, so it is safe to call as often as needed.
  * Notification text is only ever the fixed evening line or the reminder the
  * user asked for — never captures or entries.
@@ -160,23 +158,9 @@ export function syncNotifications(): Promise<void> {
   return syncing;
 }
 
-/** The lunch, break and dinner reminders live on the Android side; they get
- *  the times from Settings. Older builds of the bridge lack the method. */
-async function syncDayReminders(): Promise<void> {
-  const bridge = androidBridge();
-  if (!bridge?.setDayReminders) return;
-  const [enabled, lunch, breakTime, dinner] = await Promise.all([
-    getSetting("day_reminders"),
-    getSetting("usual_lunch"),
-    getSetting("usual_break"),
-    getSetting("usual_dinner"),
-  ]);
-  bridge.setDayReminders(JSON.stringify({ enabled: enabled === "1", lunch, break: breakTime, dinner }));
-}
-
 async function doSync(): Promise<void> {
-  await syncDayReminders().catch(() => {});
   if (!(await isPermissionGranted().catch(() => false))) return;
+  await syncDayReminders(nowLocalMinute()).catch(() => {});
   const [state, reminders, scheduled] = await Promise.all([
     readReminderState(),
     listPendingReminders(),
@@ -219,7 +203,7 @@ async function doSync(): Promise<void> {
 }
 
 /** While the app is open: reminders whose time came have already rung through
- *  Android, so they are only marked as done here (at most once each). */
+ *  iOS, so they are only marked as done here (at most once each). */
 async function markDueTaskReminders(): Promise<void> {
   const due = await listDueReminders(nowLocalMinute());
   for (const r of due) await markReminderFired(r.id);
@@ -255,22 +239,34 @@ export function startScheduler(): void {
   markMissedDaysSkipped(localDateKey()).catch(() => {});
   runReviewJobsAndNotify().catch(() => {});
 
+  // Anything caught while Ember was away: the widget, the share sheet, or a
+  // reminder answered in the notification itself.
+  drainInboxIntoJournal().catch(() => {});
+
   const sync = () => void syncNotifications().catch(() => {});
   getSetting("onboarded")
     .then(async (onboarded) => {
       if (onboarded === "1") await ensureNotificationPermission();
+      await registerDayReminderActions().catch(() => {});
       sync();
     })
     .catch(() => {});
   markDueTaskReminders().catch(() => {});
 
-  // Leaving the app is the moment Android needs an up-to-date plan: the entry
+  // A day reminder answered while Ember is on screen is saved here; one
+  // answered while it isn't goes through the inbox instead.
+  onAction(async (payload) => {
+    const saved = await handleDayReminderAction(payload as unknown as Record<string, unknown>).catch(() => false);
+    if (saved) sync();
+  }).catch(() => {});
+
+  // Leaving the app is the moment iOS needs an up-to-date plan: the entry
   // may have just been saved, or the reminder time changed.
   document.addEventListener("visibilitychange", () => {
     sync();
     if (document.visibilityState === "visible") {
-      // Notes typed into the notification drawer went straight to the database.
-      emit("captures:updated").catch(() => {});
+      // Notes caught while Ember was away are only saved now.
+      drainInboxIntoJournal().catch(() => {});
       markMissedDaysSkipped(localDateKey()).catch(() => {});
       runReviewJobsAndNotify().catch(() => {});
     }

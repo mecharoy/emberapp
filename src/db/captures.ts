@@ -71,3 +71,12 @@ export async function deleteCapture(id: number): Promise<void> {
   const db = await getDb();
   await db.execute("DELETE FROM captures WHERE id = $1", [id]);
 }
+
+/** A note that was written outside the app (the widget, the share sheet, a
+ *  reminder answered while Ember was closed) and only reaches the database
+ *  later. It keeps the time it was actually written, so it lands on the right
+ *  day and in the right order on the Today tab. */
+export async function createCaptureAt(createdAt: string, text: string): Promise<void> {
+  const db = await getDb();
+  await db.execute("INSERT INTO captures (created_at, text, mood_emoji) VALUES ($1, $2, NULL)", [createdAt, text]);
+}

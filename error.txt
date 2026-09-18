@@ -1,0 +1,71 @@
+Errors and mistakes hit while porting Ember to iPhone (ember-ios).
+Newest last. Format: Problem / Location / Action / Cause / Fix.
+
+---
+
+Problem: python could not open a file that had just been written to /tmp.
+Location: shell, writing a scratch copy of src-tauri/src/lib.rs
+Action: splitting lib.rs into a head and a tail before rewriting it
+Cause: this is Git Bash on Windows. "/tmp" in a bash redirect and "/tmp" as
+       seen by native Windows python are two different places.
+Fix: use the session scratchpad directory with a full Windows path
+     (C:/Users/.../Temp/claude/.../scratchpad) for every intermediate file.
+
+---
+
+Problem: bash reported "unexpected EOF while looking for matching quote" on a
+         heredoc that looked balanced.
+Location: shell, writing the new src-tauri/src/lib.rs
+Action: cat > file <<'RUST' ... RUST with a long Rust body
+Cause: two stray non-ASCII characters had ended up inside a comment in the
+       body, and the shell mangled the encoding.
+Fix: write files longer than a few lines with the Write tool rather than a
+     heredoc. Keep source comments ASCII.
+
+---
+
+Problem: backup_save_copy would have deleted the snapshot it was about to
+         move, so every backup copy would have failed with "There was no copy
+         to save."
+Location: src-tauri/src/ios_extras.rs
+Action: writing the iOS replacement for Backups.saveCopy() in Backup.kt
+Cause: backup_save_copy called backup_snapshot_path to find the file, but that
+       command's job is to hand SQLite an EMPTY path, so it removes whatever is
+       there first. Two different jobs behind one name.
+Fix: split them: snapshot_file() computes the path, backup_snapshot_path()
+     computes it and clears it, backup_save_copy() only computes it.
+
+---
+
+Problem: a reply typed into a day reminder would have been saved twice - once
+         by the webview and once by the Swift handler.
+Location: ios/App/EmberNotificationHandler.swift, src/dayReminders.ts
+Action: adding a native handler so replies still work when Ember is closed
+Cause: tauri-plugin-notification installs its own UNUserNotificationCenter
+       delegate to deliver actions to JavaScript. Setting a second delegate
+       either replaces it (breaking onAction) or duplicates the work.
+Fix: EmberNotificationHandler.install() keeps a reference to the plugin's
+     delegate and forwards every callback to it. It only writes to the inbox
+     when UIApplication.shared.applicationState != .active - i.e. when there
+     is no webview to handle it.
+
+---
+
+Problem: one test failed after removing the "pc" (paired computer) provider.
+Location: src/ai/smallModels.test.ts:19
+Action: npx vitest run
+Cause: the test asserted that provider "pc" gets compact context mode. That
+       provider no longer exists in this edition, so it falls through to the
+       big-model default.
+Fix: dropped that assertion and renamed the test. The remaining providers
+     (local, cloud) are still checked.
+
+---
+
+Problem: two "declared but never read" type errors after removing the computer
+         link.
+Location: src/ai/reviewJobs.ts:6, src/windows/Settings.tsx:25
+Action: npm run typecheck
+Cause: getSetting and getProvider were only used by the code paths that
+       handled the "pc" provider.
+Fix: removed both imports. typecheck clean.

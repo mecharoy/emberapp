@@ -1,9 +1,9 @@
-// Ember for Android: database migrations, plugins, a private file store for
-// API keys, and the link with Ember on a computer.
+// Ember for iPhone: database migrations, plugins, a private file store for
+// API keys, and the notes that were left waiting outside the app.
 
-mod lan_client;
-mod lan_proto;
+mod ios_extras;
 
+use ios_extras::exclude_from_backup;
 use std::path::PathBuf;
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
@@ -99,11 +99,10 @@ fn migrations() -> Vec<Migration> {
 
 // ---------- API keys ----------
 //
-// Android has no keychain the `keyring` crate can reach, so each key is a file
-// in the app's private data directory (/data/data/<package>/secrets/). Android
-// gives every app its own Linux user, so no other app can read it. The backup
-// rules in res/xml only take ember.db, so keys never leave the phone that way
-// either, and they never go into ember.db.
+// Each key is a file in the app's private data directory. iOS gives every app
+// its own container, so no other app can read it, and the folder is marked
+// "don't back this up" (ios_extras.rs), so keys never reach iCloud or an
+// encrypted computer backup. They never go into ember.db either.
 
 /// Only whitelisted names — the webview can't use this as a general file store.
 fn secret_path(app: &tauri::AppHandle, name: &str) -> Result<PathBuf, String> {
@@ -118,6 +117,8 @@ fn secret_path(app: &tauri::AppHandle, name: &str) -> Result<PathBuf, String> {
         .map_err(|e| format!("Could not find the app's data folder: {e}"))?
         .join("secrets");
     std::fs::create_dir_all(&dir).map_err(|e| format!("Could not create the key folder: {e}"))?;
+    // Set every time: the mark is lost if the folder is ever recreated.
+    exclude_from_backup(&dir);
     Ok(dir.join(name))
 }
 
@@ -143,6 +144,7 @@ fn secret_set(app: tauri::AppHandle, name: String, value: String) -> Result<(), 
         };
     }
     std::fs::write(&path, value).map_err(|e| e.to_string())?;
+    exclude_from_backup(&path);
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -153,9 +155,8 @@ fn secret_set(app: tauri::AppHandle, name: String, value: String) -> Result<(), 
 
 // ---------- Restoring a backup ----------
 //
-// A picked backup is first copied next to ember.db as STAGED_BACKUP (by
-// backup_stage here, or by Backup.kt on Android), so the webview can show
-// what's in it before anything is replaced.
+// A picked backup is first copied next to ember.db as STAGED_BACKUP, so the
+// webview can show what's in it before anything is replaced.
 
 const STAGED_BACKUP: &str = "ember-restore-candidate.db";
 
@@ -184,12 +185,17 @@ fn backup_stage(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Resu
     };
     check_backup(bytes)?;
     let dir = db_dir(&app)?;
-    std::fs::write(dir.join(STAGED_BACKUP), bytes).map_err(|e| format!("Could not copy the backup: {e}"))
+    let staged = dir.join(STAGED_BACKUP);
+    std::fs::write(&staged, bytes).map_err(|e| format!("Could not copy the backup: {e}"))?;
+    // Scratch space: never worth a slot in the user's iCloud backup.
+    exclude_from_backup(&staged);
+    Ok(())
 }
 
 /// Puts the staged backup in place of ember.db. The webview closes its
-/// connections first and restarts the app afterwards, so migrations run on
-/// the restored file. The replaced files are kept next to it as *.before-restore.
+/// connections first, and afterwards asks the user to open Ember again (iOS
+/// apps may not restart themselves), so migrations run on the restored file.
+/// The replaced files are kept next to it as *.before-restore.
 #[tauri::command]
 fn backup_restore(app: tauri::AppHandle) -> Result<(), String> {
     let dir = db_dir(&app)?;
@@ -200,8 +206,10 @@ fn backup_restore(app: tauri::AppHandle) -> Result<(), String> {
     for suffix in ["", "-wal", "-shm"] {
         let file = dir.join(format!("ember.db{suffix}"));
         if file.exists() {
-            std::fs::rename(&file, dir.join(format!("ember.db{suffix}.before-restore")))
+            let aside = dir.join(format!("ember.db{suffix}.before-restore"));
+            std::fs::rename(&file, &aside)
                 .map_err(|e| format!("Could not set the current journal aside: {e}"))?;
+            exclude_from_backup(&aside);
         }
     }
     std::fs::rename(&incoming, &db).map_err(|e| format!("Could not put the backup in place: {e}"))?;
@@ -211,7 +219,6 @@ fn backup_restore(app: tauri::AppHandle) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(lan_client::LanClient::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_http::init())
@@ -227,13 +234,10 @@ pub fn run() {
             secret_set,
             backup_stage,
             backup_restore,
-            lan_client::lan_discover,
-            lan_client::lan_link,
-            lan_client::lan_unlink,
-            lan_client::lan_pair,
-            lan_client::lan_call,
-            lan_client::lan_chat,
-            lan_client::lan_chat_cancel,
+            ios_extras::backup_snapshot_path,
+            ios_extras::backup_save_copy,
+            ios_extras::inbox_drain,
+            ios_extras::inbox_append,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -28,6 +28,7 @@ export default function RestoreBackup({
     | { status: "picking" }
     | { status: "picked"; summary: BackupSummary }
     | { status: "restoring" }
+    | { status: "restored" }
     | { status: "error"; message: string }
   >({ status: "idle" });
 
@@ -45,9 +46,23 @@ export default function RestoreBackup({
     setState({ status: "restoring" });
     try {
       await restorePickedBackup();
+      // iOS apps may not close and open themselves, so Ember asks instead.
+      setState({ status: "restored" });
     } catch (e) {
       setState({ status: "error", message: e instanceof Error ? e.message : String(e) });
     }
+  }
+
+  if (state.status === "restored") {
+    return (
+      <div className="fade-up flex flex-col gap-2 rounded-xl border border-rule bg-sheet/60 px-4 py-3 text-left">
+        <p className="font-serif text-[17px] text-ink">Your journal is back.</p>
+        <p className="text-[13.5px] leading-relaxed text-ink-soft">
+          Close Ember and open it again to read it &mdash; swipe up from the bottom of the screen, swipe Ember away, then
+          tap it once more.
+        </p>
+      </div>
+    );
   }
 
   if (state.status === "picked" || state.status === "restoring") {

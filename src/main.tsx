@@ -7,6 +7,6 @@ import "@fontsource-variable/caveat/wght.css";
 import "./index.css";
 
 // No StrictMode: its doubled effects in development push and pop the history
-// entries useBackButton keeps for Android's back gesture, which closes pages
-// in dev that stay open in the real app.
+// entries useBackButton keeps for the edge-swipe back gesture, which closes
+// pages in dev that stay open in the real app.
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);

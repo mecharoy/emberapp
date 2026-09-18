@@ -19,7 +19,6 @@ import { ProviderError } from "../ai/types";
 import { nowLocalMinute } from "../scheduler";
 import { emit, listen } from "@tauri-apps/api/event";
 import type { ApplyResult } from "../db/sync";
-import { startLiveSync } from "../lan/phoneLink";
 import EntryReview from "./EntryReview";
 import CheckInForm from "./CheckInForm";
 import ChecklistPanel from "./ChecklistPanel";
@@ -131,13 +130,6 @@ export default function CounselorChat({
       unlisten.then((u) => u());
     };
   }, []);
-
-  // Talking through the computer's model: keep both devices in step while
-  // the conversation is on screen.
-  useEffect(() => {
-    if (view !== "conversation") return;
-    return startLiveSync();
-  }, [view]);
 
   // The other device wrote to this day (a sync): show it, unless a reply is
   // arriving here right now, in which case the next sync brings it.

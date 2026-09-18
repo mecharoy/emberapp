@@ -1,23 +1,19 @@
 [package]
-name = "ember-mobile"
+name = "ember-ios"
 version = "1.5.2"
-description = "Ember for Android - a journal that writes itself"
+description = "Ember for iPhone - a journal that writes itself"
 authors = ["Ember"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "ember_mobile_lib"
+# The `_lib` suffix keeps the library name from clashing with the binary name.
+name = "ember_ios_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
-# tauri-plugin-http bundles its own TLS roots, so HTTPS works on Android as is.
+# tauri-plugin-http bundles its own TLS roots, so HTTPS works on iOS as is.
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
@@ -28,11 +24,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# The link with Ember on a computer: requests, the sealing, finding it.
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-tokio = { version = "1", features = ["net", "time", "sync", "macros"] }
-aes-gcm = "0.10"
-pbkdf2 = "0.12"
-sha2 = "0.10"
-rand = "0.8"
-base64 = "0.22"
+
+# Keeping the API keys out of iCloud: the "don't back this up" mark is an
+# extended attribute, set with setxattr.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

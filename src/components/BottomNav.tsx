@@ -61,7 +61,7 @@ const TABS = [
 export default function BottomNav({ active, onSelect }: BottomNavProps) {
   return (
     <nav
-      className="relative z-30 flex shrink-0 border-t border-rule bg-paper/95"
+      className="safe-bottom relative z-30 flex shrink-0 border-t border-rule bg-paper/95"
       style={{ height: "var(--nav-h)" }}
       aria-label="Sections"
     >

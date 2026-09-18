@@ -3,7 +3,7 @@
 // refresh button. Each job is a cheap no-op when nothing is due.
 
 import { emit } from "@tauri-apps/api/event";
-import { getSetting, setSetting } from "../db/settings";
+import { setSetting } from "../db/settings";
 import { runWeeklyReviewIfDue, type ReviewResult } from "./review";
 import { runMonthlyReportIfDue, type MonthlyResult } from "./monthly";
 import { runFortnightlySummaryIfDue, type FortnightResult } from "./fortnightly";
@@ -19,9 +19,6 @@ export interface ReviewJobsResult {
 }
 
 export async function runReviewJobsAndNotify(): Promise<ReviewJobsResult> {
-  // With the computer's model, the computer writes these and they sync over:
-  // run here they would fail whenever the two aren't on the same Wi-Fi.
-  if ((await getSetting("provider")) === "pc") return { weekly: null, monthly: null, fortnightly: null, memory: null };
   const fail = (e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) });
   const weekly = await runWeeklyReviewIfDue().catch(fail);
   const monthly = await runMonthlyReportIfDue().catch(fail);

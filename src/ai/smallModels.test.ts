@@ -13,10 +13,9 @@ import type { DayRow } from "../insights/stats";
 const settings = (over: Record<string, string>) => ({ ...SETTINGS_DEFAULTS, ...over });
 
 describe("budgetFor", () => {
-  it("puts local, free hosted and the phone's computer link in compact mode", () => {
+  it("puts local and free hosted models in compact mode", () => {
     expect(budgetFor(settings({ provider: "local", local_num_ctx: "8192" }))).toMatchObject({ mode: "compact", totalTokens: 8192 });
     expect(budgetFor(settings({ provider: "cloud" })).mode).toBe("compact");
-    expect(budgetFor(settings({ provider: "pc" })).mode).toBe("compact");
     expect(budgetFor(settings({ provider: "anthropic" })).mode).toBe("full");
   });
 

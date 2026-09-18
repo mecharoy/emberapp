@@ -47,8 +47,10 @@ export function feedbackIssueUrl(source: string, input: FeedbackInput): string |
   return `https://github.com/${repo.owner}/${repo.repo}/issues/new?${params.toString()}`;
 }
 
-/** "Android", "Windows", "macOS" or "Linux", from the webview. */
+/** "iPhone", "Android", "Windows", "macOS" or "Linux", from the webview. An
+ *  iPhone calls itself "like Mac OS X", so it is checked first. */
 export function systemName(userAgent: string): string {
+  if (/iPhone|iPad|iPod/.test(userAgent)) return "iPhone";
   if (/Android/.test(userAgent)) return "Android";
   if (/Windows/.test(userAgent)) return "Windows";
   if (/Mac/.test(userAgent)) return "macOS";

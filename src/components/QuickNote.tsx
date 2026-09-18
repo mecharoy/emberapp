@@ -29,9 +29,11 @@ export default function QuickNote({ open, onClose }: { open: boolean; onClose: (
   useEffect(() => {
     if (!open) return;
     countCapturesForDate(localDateKey()).then(setCount).catch(() => {});
-    // After the rise animation starts, so Android opens the keyboard for it.
-    const t = setTimeout(() => inputRef.current?.focus(), 60);
-    return () => clearTimeout(t);
+    // As close to the tap as React allows: iOS only raises the keyboard for a
+    // focus that still looks like part of the gesture that asked for it. (If
+    // it ever stops rising, the native fix is in BUILDING-ON-A-MAC.md.)
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
   }, [open]);
 
   if (!open) return null;

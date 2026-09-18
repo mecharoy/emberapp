@@ -5,8 +5,9 @@ let depth = 0;
 history.replaceState({ emberDepth: 0 }, "");
 
 /**
- * Makes Android's back gesture close something (a sheet, an open entry, a
- * tab other than Today) instead of leaving the app. While `open`, one history
+ * Makes the back gesture - a swipe in from the left edge on iPhone - close
+ * something (a sheet, an open entry, a tab other than Today) instead of going
+ * back out of the app. While `open`, one history
  * entry is kept for it; going back pops that entry and calls `close`. Closing
  * it any other way removes the entry again, so back presses never pile up.
  * Nested ones close innermost first: each only answers when history drops

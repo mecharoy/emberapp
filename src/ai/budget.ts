@@ -1,7 +1,7 @@
 // How much Ember sends the model. Big hosted models (Claude, GPT) get
 // everything: the full prompt, every memory layer, the whole conversation.
-// Small or rate-limited ones (a local model, a free hosted tier, the phone
-// going through the computer) get "compact" mode: a short prompt, a briefing
+// Small or rate-limited ones (a local model, a free hosted tier) get
+// "compact" mode: a short prompt, a briefing
 // written before the conversation, only the memory lines that match today, and
 // a rolling chat window. Two reasons: a prompt longer than the model's window
 // is cut from the front without an error (Ollama), and small models follow a
@@ -23,7 +23,7 @@ export interface ContextBudget {
 }
 
 /** Providers that get compact mode unless Settings says otherwise. */
-const SMALL_PROVIDERS = new Set(["local", "cloud", "pc"]);
+const SMALL_PROVIDERS = new Set(["local", "cloud"]);
 
 
 function numCtx(value: string): number {
@@ -46,9 +46,6 @@ export function budgetFor(all: Record<SettingKey, string>): ContextBudget {
       const total = preset?.tokensPerMinute ? Math.floor(preset.tokensPerMinute * 0.8) : 16000;
       return { mode: small ? "compact" : "full", totalTokens: total, replyTokens: Number(settings.cloud_max_tokens) || preset?.maxTokens || 900 };
     }
-    case "pc":
-      // The computer sets its own context size; this is Ollama's usual one.
-      return { mode: small ? "compact" : "full", totalTokens: DEFAULT_NUM_CTX, replyTokens: 700 };
     default:
       return { mode: small ? "compact" : "full", totalTokens: 180000, replyTokens: 2000 };
   }

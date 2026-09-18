@@ -233,11 +233,9 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
                     setSetting("cloud_max_tokens", String(preset.maxTokens)),
                   ]),
             ]
-          : provider === "pc"
-            ? []
-            : provider === "openai"
-              ? [setOpenAiKey(key.trim()), ...(sameService ? [] : [setSetting("model", DEFAULT_OPENAI_MODEL)])]
-              : [setApiKey(key.trim()), ...(sameService ? [] : [setSetting("model", "claude-sonnet-5")])]),
+          : provider === "openai"
+            ? [setOpenAiKey(key.trim()), ...(sameService ? [] : [setSetting("model", DEFAULT_OPENAI_MODEL)])]
+            : [setApiKey(key.trim()), ...(sameService ? [] : [setSetting("model", "claude-sonnet-5")])]),
       ]);
     }
     await claimJournal();
@@ -270,11 +268,9 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
             setSetting("cloud_max_tokens", String(preset.maxTokens)),
             setCloudApiKey(key.trim()),
           ]
-        : provider === "pc"
-          ? []
-          : provider === "openai"
-            ? [setSetting("model", DEFAULT_OPENAI_MODEL), setOpenAiKey(key.trim())]
-            : [setSetting("model", "claude-sonnet-5"), setApiKey(key.trim())]),
+        : provider === "openai"
+          ? [setSetting("model", DEFAULT_OPENAI_MODEL), setOpenAiKey(key.trim())]
+          : [setSetting("model", "claude-sonnet-5"), setApiKey(key.trim())]),
     ]);
     setSaving(false);
     setStep("questions");
@@ -299,7 +295,7 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
       if (summary) await setProfileSummary(summary, localStamp());
     }
     await setSetting("onboarded", "1");
-    // Android 13+ asks once whether Ember may post the evening reminder.
+    // iOS asks once whether Ember may post the evening reminder.
     await ensureNotificationPermission();
     onDone();
   }
@@ -499,13 +495,6 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
               </label>
             )}
 
-            {provider === "pc" && (
-              <p className="hint mt-1">
-                Pair later in Settings &rsaquo; Sync with computer.
-              </p>
-            )}
-
-            {provider !== "pc" && (
             <label className="mt-1 flex flex-col gap-1.5">
               <span className="label">API key</span>
               <input
@@ -530,7 +519,6 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
                 You can also add it later in Settings.
               </span>
             </label>
-            )}
           </div>
         </div>
 

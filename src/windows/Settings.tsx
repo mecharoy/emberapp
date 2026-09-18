@@ -19,12 +19,9 @@ import KeyLink from "../components/KeyLink";
 import { PaperPicker } from "../components/EntryFields";
 import { paperById } from "../components/paper";
 import { INSTRUMENT_ORDER, INSTRUMENTS, parseEnabledInstruments } from "../insights/assessments";
-import { androidBridge } from "../androidBridge";
 import { ensureNotificationPermission } from "../scheduler";
-import { backupCopySupported, backupNow } from "../backup";
+import { BACKUP_LOCATION, backupNow } from "../backup";
 import RestoreBackup from "../components/RestoreBackup";
-import ComputerLinkSettings from "../components/ComputerLinkSettings";
-import { getProvider } from "../ai/factory";
 
 type FormState = Record<SettingKey, string>;
 
@@ -64,7 +61,6 @@ export default function Settings({ active = true }: { active?: boolean }) {
   const [showDelete, setShowDelete] = useState(false);
   // The note field in the notification drawer; lives on the Android side and
   // applies at once, without Save. null = not running on Android.
-  const [drawerNote, setDrawerNote] = useState<boolean | null>(() => androidBridge()?.isQuickNoteEnabled() ?? null);
   const [testState, setTestState] = useState<
     { status: "idle" } | { status: "testing" } | { status: "ok" } | { status: "error"; message: string }
   >({ status: "idle" });
@@ -208,9 +204,7 @@ export default function Settings({ active = true }: { active?: boolean }) {
     setTestState({ status: "testing" });
     try {
       const provider =
-        form?.provider === "pc"
-          ? await getProvider() // saved just above
-          : form?.provider === "openai"
+        form?.provider === "openai"
           ? createOpenAiProvider({ apiKey: openAiKey, model: form?.model || DEFAULT_OPENAI_MODEL })
           : form?.provider === "anthropic"
           ? createAnthropicProvider({
@@ -367,16 +361,6 @@ export default function Settings({ active = true }: { active?: boolean }) {
           </>
         )}
 
-        {form.provider === "pc" && (
-          <>
-            <p className="hint">
-              Uses your paired computer&rsquo;s AI: its local model or the provider chosen there. Both must be on the same
-              network. Weekly and monthly reviews are written on the computer.
-            </p>
-            {testButton(false)}
-          </>
-        )}
-
         {form.provider === "openai" && (
           <>
             <Field label="API key">
@@ -456,10 +440,6 @@ export default function Settings({ active = true }: { active?: boolean }) {
         </Field>
       </Section>
 
-      <Section title="Sync with computer">
-        <ComputerLinkSettings />
-      </Section>
-
       <Section title="You">
         <Field label="Your name">
           <input className="input" value={form.user_name} onChange={(e) => update("user_name", e.target.value)} placeholder="Your name" />
@@ -506,25 +486,6 @@ export default function Settings({ active = true }: { active?: boolean }) {
             <option value="second">Second person (&ldquo;You&hellip;&rdquo;)</option>
           </select>
         </Field>
-        {drawerNote !== null && (
-          <label className="flex items-center justify-between gap-4">
-            <span className="label">
-              Quick note in notifications
-              <span className="hint mt-0.5 block">Also available as a Quick Settings tile.</span>
-            </span>
-            <input
-              type="checkbox"
-              checked={drawerNote}
-              onChange={async (e) => {
-                const on = e.target.checked;
-                if (on) await ensureNotificationPermission();
-                androidBridge()?.setQuickNoteEnabled(on);
-                setDrawerNote(on);
-              }}
-              className="h-5 w-5 shrink-0 accent-ember"
-            />
-          </label>
-        )}
         <div className="flex flex-col gap-2">
           <span className="label">Default paper</span>
           <PaperPicker value={paperById(form.journal_paper).id} onChange={(id) => update("journal_paper", id)} />
@@ -603,36 +564,33 @@ export default function Settings({ active = true }: { active?: boolean }) {
 
       <Section title="Data">
         <div className="flex flex-col gap-2.5">
-          <p className="hint">Included in your phone&rsquo;s Google backup, without API keys.</p>
-          {backupCopySupported() && (
-            <label className="flex items-start gap-3 text-[14.5px] text-ink">
+          <p className="hint">Included in your phone&rsquo;s iCloud backup, without API keys.</p>
+          <label className="flex items-start gap-3 text-[14.5px] text-ink">
               <input
                 type="checkbox"
                 className="mt-1 h-4 w-4 accent-ember"
                 checked={form.backup_copy === "1"}
                 onChange={(e) => update("backup_copy", e.target.checked ? "1" : "")}
               />
-              <span>
-                Daily backup to Documents/Ember
-                {form.backup_last_at && (
-                  <span className="hint block">Last backup: {new Date(form.backup_last_at).toLocaleString()}</span>
-                )}
-              </span>
-            </label>
-          )}
+            <span>
+              Daily backup to the Files app
+              <span className="hint block">{BACKUP_LOCATION}</span>
+              {form.backup_last_at && (
+                <span className="hint block">Last backup: {new Date(form.backup_last_at).toLocaleString()}</span>
+              )}
+            </span>
+          </label>
           <div className="flex flex-wrap items-center gap-2.5">
-            {backupCopySupported() && (
-              <button onClick={handleBackupNow} disabled={backupState.status === "working"} className="btn-subtle">
-                {backupState.status === "working" ? "Backing up…" : "Back up now"}
-              </button>
-            )}
+            <button onClick={handleBackupNow} disabled={backupState.status === "working"} className="btn-subtle">
+              {backupState.status === "working" ? "Backing up…" : "Back up now"}
+            </button>
           </div>
           <RestoreBackup
             label="Restore backup"
             buttonClass="btn-subtle self-start"
-            warning="This replaces all current data. Ember restarts."
+            warning="This replaces all current data. You'll be asked to close Ember and open it again."
           />
-          {backupState.status === "done" && <p className="text-[13.5px] text-moss">Saved to Documents/Ember.</p>}
+          {backupState.status === "done" && <p className="text-[13.5px] text-moss">Saved to {BACKUP_LOCATION}.</p>}
           {backupState.status === "error" && <p className="text-[13.5px] text-danger">{backupState.message}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
@@ -659,8 +617,8 @@ export default function Settings({ active = true }: { active?: boolean }) {
         {showDelete && (
           <div className="fade-up flex flex-col gap-3 rounded-xl bg-danger-wash px-4 py-3.5">
             <p className="text-[13.5px] leading-relaxed text-danger">
-              Erases all entries, notes, conversations, settings and API keys. A paired computer is reset at the next
-              sync; notes it hasn&rsquo;t synced yet are kept. This can&rsquo;t be undone. Type <b>delete</b> to confirm.
+              Erases all entries, notes, conversations, settings and API keys. This can&rsquo;t be undone. Type
+              <b> delete</b> to confirm.
             </p>
             <input
               className="input"

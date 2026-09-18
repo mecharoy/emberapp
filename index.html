@@ -3,7 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the page reach under the notch and the home
+         indicator; index.css keeps the content clear of both with
+         env(safe-area-inset-*). interactive-widget stops iOS scrolling the
+         whole page away when the keyboard opens. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <meta name="color-scheme" content="light" />
     <title>Ember</title>
   </head>

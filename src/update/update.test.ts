@@ -96,6 +96,8 @@ describe("platformKey", () => {
     expect(platformKey("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")).toBe("windows-x86_64");
     expect(platformKey("Mozilla/5.0 (X11; Linux x86_64)")).toBe("linux-x86_64");
     expect(platformKey("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")).toBeNull();
+    // An iPhone says "like Mac OS X" and can't install a download anyway.
+    expect(platformKey("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15")).toBeNull();
     expect(platformKey("Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36")).toBe("android-aarch64");
   });
 });

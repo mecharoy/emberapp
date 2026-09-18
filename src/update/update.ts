@@ -65,8 +65,12 @@ export function compareVersions(a: string, b: string): number {
 export type PlatformKey = "android-aarch64" | "windows-x86_64" | "darwin-aarch64" | "darwin-x86_64" | "linux-x86_64" | null;
 
 /** Best guess from the webview. macOS doesn't say which chip, so a Mac gets
- *  the release page rather than a possibly wrong installer. */
+ *  the release page rather than a possibly wrong installer — and so does an
+ *  iPhone, which can't install anything from a download at all: a new version
+ *  arrives through the App Store or TestFlight. An iPhone calls itself "like
+ *  Mac OS X", so it is checked first. */
 export function platformKey(userAgent: string): PlatformKey {
+  if (/iPhone|iPad|iPod/.test(userAgent)) return null;
   if (/Android/.test(userAgent)) return "android-aarch64";
   if (/Windows/.test(userAgent)) return "windows-x86_64";
   if (/Linux/.test(userAgent) && !/Android/.test(userAgent)) return "linux-x86_64";

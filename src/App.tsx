@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import UpdateBanner from "./components/UpdateBanner";
 import WhatsNew from "./components/WhatsNew";
 import BottomNav from "./components/BottomNav";
@@ -14,7 +15,6 @@ import { localDateKey } from "./time";
 import { conversationState } from "./db/sessions";
 import { startScheduler } from "./scheduler";
 import { backupIfDue } from "./backup";
-import { startComputerSync } from "./lan/phoneLink";
 import { useBackButton } from "./useBackButton";
 
 function App() {
@@ -46,17 +46,24 @@ function App() {
   useEffect(() => {
     firstRunScreen().then(setFirstRun);
     startScheduler(); // reminders, missed-day skips, weekly review
-    startComputerSync(); // the journal on a paired computer, when on the same Wi-Fi
-    // The daily copy in Documents/Ember: on opening, and when Ember is put away.
+    // The daily copy in the Files app: on opening, and when Ember is put away.
     backupIfDue();
     const onHide = () => {
       if (document.visibilityState === "hidden") backupIfDue();
     };
     document.addEventListener("visibilitychange", onHide);
-    return () => document.removeEventListener("visibilitychange", onHide);
+
+    // The widget, the Control Centre button and the Shortcuts action open
+    // Ember and ask for the note sheet (src/inbox.ts).
+    const unlisten = listen("note:open", () => setNoteOpen(true));
+
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      unlisten.then((u) => u()).catch(() => {});
+    };
   }, []);
 
-  // Back from any other tab returns to Today; back on Today leaves the app.
+  // The edge-swipe back gesture returns to Today from any other tab.
   useBackButton(active !== "today", () => setActive("today"));
 
   // Moves Today to the new day once the old one is safe to leave: its
