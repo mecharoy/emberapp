@@ -14,7 +14,7 @@ import {
   type MonthlyPromptInput,
 } from "./prompts/monthly";
 import { sourceDaysKey } from "./review";
-import { localDateKey } from "../db/captures";
+import { localDateKey } from "../time";
 import { listAllDayMetrics } from "../db/metrics";
 import { listMonthlyReports, saveMonthlyReport } from "../db/reviews";
 import { getSetting } from "../db/settings";

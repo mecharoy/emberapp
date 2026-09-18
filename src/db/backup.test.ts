@@ -9,7 +9,6 @@ const migrations = import.meta.glob("../../src-tauri/migrations/*.sql", {
   eager: true,
 }) as Record<string, string>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let db: any;
 
 async function freshDb(withSchema: boolean) {

@@ -3,6 +3,7 @@ import type { AIProvider, ChatMessage } from "../types";
 import { applyTurnPreamble, ProviderError } from "../types";
 import { createReasoningFilter, stripReasoning } from "./reasoning";
 import { fetchWithRetry, TRANSIENT_STATUSES } from "./retry";
+import { estimateTokens } from "../tokens";
 
 export interface OpenAiCompatibleConfig {
   /** Full chat-completions URL, e.g. http://localhost:11434/v1/chat/completions */
@@ -49,11 +50,6 @@ function toOpenAiMessages(messages: ChatMessage[], system: string) {
 /** Smallest reply worth sending a job for; below it the reply would be cut off. */
 export const MIN_JOB_REPLY_TOKENS = 1200;
 
-/** Rough prompt size in tokens. Measured English prompts run ~3.9–4.6
- *  characters a token; 3.5 errs on the big side. */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 3.5);
-}
 
 /** The max_tokens to send. A chat turn uses the usual ceiling; a job gets
  *  what it asks for, but never past the job ceiling nor past what is left of

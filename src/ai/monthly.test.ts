@@ -13,7 +13,6 @@ function stubProvider(responses: string[]): { provider: AIProvider; prompts: str
         prompts.push(messages[messages.length - 1].content);
         return responses[Math.min(i++, responses.length - 1)];
       },
-      // eslint-disable-next-line require-yield
       async *chatStream(): AsyncIterable<string> {
         throw new Error("not used by the monthly reviewer");
       },

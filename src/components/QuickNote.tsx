@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { emit } from "@tauri-apps/api/event";
-import { countCapturesForDate, createCapture, localDateKey } from "../db/captures";
+import { countCapturesForDate, createCapture } from "../db/captures";
+import { localDateKey } from "../time";
 
 const MOODS = [
   { emoji: "😞", label: "down" },

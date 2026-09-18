@@ -10,12 +10,6 @@ export async function listMemorySummaries(): Promise<MemorySummary[]> {
   return db.select<MemorySummary[]>("SELECT * FROM memory_summaries ORDER BY number ASC");
 }
 
-export async function latestMemorySummary(): Promise<MemorySummary | null> {
-  const db = await getDb();
-  const rows = await db.select<MemorySummary[]>("SELECT * FROM memory_summaries ORDER BY number DESC LIMIT 1");
-  return rows[0] ?? null;
-}
-
 export interface MemorySummaryInput {
   number: number;
   periodStart: string;

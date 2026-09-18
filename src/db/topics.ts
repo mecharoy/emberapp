@@ -4,12 +4,7 @@
 
 import { getDb } from "./client";
 import type { Topic } from "./types";
-
-function stamp(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
+import { localStamp } from "../time";
 
 /** "Dispute with Dad!" → "dispute-with-dad". */
 export function topicKey(title: string): string {
@@ -55,13 +50,13 @@ export async function upsertTopic(t: TopicUpsert, today: string): Promise<void> 
        next_step = excluded.next_step,
        last_discussed = COALESCE(excluded.last_discussed, topics.last_discussed),
        updated_at = excluded.updated_at`,
-    [t.key, t.title, t.status, t.notes, t.nextStep, today, t.discussedOn, stamp()],
+    [t.key, t.title, t.status, t.notes, t.nextStep, today, t.discussedOn, localStamp()],
   );
 }
 
 export async function setTopicStatus(key: string, status: Topic["status"]): Promise<void> {
   const db = await getDb();
-  await db.execute("UPDATE topics SET status = $1, updated_at = $2 WHERE key = $3", [status, stamp(), key]);
+  await db.execute("UPDATE topics SET status = $1, updated_at = $2 WHERE key = $3", [status, localStamp(), key]);
 }
 
 export async function deleteTopic(key: string): Promise<void> {

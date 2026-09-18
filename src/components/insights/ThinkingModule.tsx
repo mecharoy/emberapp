@@ -1,9 +1,7 @@
 import type { DayRow } from "../../insights/stats";
 import { thinkingTrapStats } from "../../insights/thinking";
 import { ModuleCard } from "./ModuleCard";
-
-const shortDate = (d: string) =>
-  new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+import { shortDate } from "../../insights/format";
 
 /** The thinking traps CBT teaches people to spot, in their own words. */
 export default function ThinkingModule({

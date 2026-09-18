@@ -3,15 +3,7 @@
 
 import { getDb } from "./client";
 import type { Assessment, Instrument } from "./types";
-
-function localStamp(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return (
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-  );
-}
+import { localStamp } from "../time";
 
 export interface AssessmentInput {
   instrument: Instrument;

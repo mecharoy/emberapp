@@ -1,4 +1,5 @@
-import { listUnjournaledCaptures, localDateKey } from "../db/captures";
+import { listUnjournaledCaptures } from "../db/captures";
+import { localDateKey } from "../time";
 import { getSetting } from "../db/settings";
 import { latestEntryDateBefore } from "../db/entries";
 import { getDayMetrics, listRecentDayMetrics } from "../db/metrics";
@@ -34,7 +35,8 @@ import {
   selectOpenThreads,
 } from "./memory";
 import { formatCaptureDaysForPrompt } from "../captureDays";
-import { contextBudget, conversationShares, estimateTokens, type ContextBudget } from "./budget";
+import { contextBudget, conversationShares, type ContextBudget } from "./budget";
+import { estimateTokens } from "./tokens";
 import { clip, pickRelevant } from "./relevance";
 import { formatMemoryFiles, memoryPool } from "./memoryFiles";
 import { listMemoryFiles } from "../db/memoryFiles";

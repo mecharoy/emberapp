@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { localDateKey } from "../db/captures";
+import { localDateKey } from "../time";
 import { setProfileSummary } from "../db/profile";
 import { composeSeedProfile } from "../db/profileSeed";
 import { getAllSettings, setSetting } from "../db/settings";
@@ -15,6 +15,7 @@ import { claimJournal } from "../install";
 import RestoreBackup from "./RestoreBackup";
 import StylePicker from "./StylePicker";
 import { DEFAULT_STYLE, type ConversationStyle } from "../ai/prompts/style";
+import { localStamp } from "../time";
 
 const PROVIDERS = PROVIDER_OPTIONS;
 
@@ -50,13 +51,6 @@ const QUESTIONS = [
     placeholder: "What helps, what you tend to do",
   },
 ] as const;
-
-/** Same local-time stamp shape review.ts uses for profile.updated_at. */
-function localStamp(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${localDateKey()}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-}
 
 function Wordmark({ size }: { size: "large" | "medium" }) {
   const large = size === "large";

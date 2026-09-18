@@ -3,12 +3,7 @@
 
 import { getDb } from "./client";
 import type { AgendaItem, SessionAgenda } from "./types";
-
-function stamp(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
+import { localStamp } from "../time";
 
 const SECTIONS = new Set(["past", "today", "future"]);
 const STATES = new Set(["open", "done", "skip"]);
@@ -46,7 +41,7 @@ export async function getAgenda(date: string): Promise<AgendaItem[] | null> {
 
 export async function saveAgenda(date: string, items: AgendaItem[]): Promise<void> {
   const db = await getDb();
-  const now = stamp();
+  const now = localStamp();
   await db.execute(
     `INSERT INTO session_agendas (date, items, created_at, updated_at) VALUES ($1, $2, $3, $3)
      ON CONFLICT(date) DO UPDATE SET items = excluded.items, updated_at = excluded.updated_at`,
@@ -78,7 +73,7 @@ export async function getConversationPrep(date: string): Promise<ConversationPre
 
 export async function saveBriefing(date: string, briefing: string): Promise<void> {
   const db = await getDb();
-  const now = stamp();
+  const now = localStamp();
   await db.execute(
     `INSERT INTO session_agendas (date, items, created_at, updated_at, briefing) VALUES ($1, '[]', $2, $2, $3)
      ON CONFLICT(date) DO UPDATE SET briefing = excluded.briefing, updated_at = excluded.updated_at`,
@@ -89,7 +84,7 @@ export async function saveBriefing(date: string, briefing: string): Promise<void
 /** The summary of the chat's first `upto` messages; null clears it. */
 export async function saveChatSummary(date: string, summary: string | null, upto: number): Promise<void> {
   const db = await getDb();
-  const now = stamp();
+  const now = localStamp();
   await db.execute(
     `INSERT INTO session_agendas (date, items, created_at, updated_at, chat_summary, summary_upto) VALUES ($1, '[]', $2, $2, $3, $4)
      ON CONFLICT(date) DO UPDATE SET chat_summary = excluded.chat_summary, summary_upto = excluded.summary_upto,

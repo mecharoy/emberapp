@@ -16,7 +16,7 @@ import {
   Schedule,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import { localDateKey } from "./db/captures";
+import { localDateKey } from "./time";
 import { getEntryForDate } from "./db/entries";
 import { listDueReminders, listPendingReminders, markReminderFired } from "./db/reminders";
 import { getSessionForDate, markMissedDaysSkipped } from "./db/sessions";

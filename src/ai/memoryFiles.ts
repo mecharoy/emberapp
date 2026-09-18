@@ -20,7 +20,7 @@ import { MEMORY_FILE_NAMES, listMemoryFiles, saveMemoryFile, type MemoryFile, ty
 import { formatSummaryForPrompt } from "./fortnightly";
 import { splitLines, type MemoryLine } from "./relevance";
 import { daysBetween } from "../insights/stats";
-import { localDateKey } from "../db/captures";
+import { localDateKey } from "../time";
 import type { Observation, Topic } from "../db/types";
 
 export const MEMORY_FILE_LABELS: Record<MemoryFileName, { title: string; what: string }> = {

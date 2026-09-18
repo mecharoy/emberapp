@@ -1,19 +1,6 @@
 import { getDb } from "./client";
 import type { Message, Session } from "./types";
-
-function isoNowLocal(): string {
-  const d = new Date();
-  const pad = (n: number, width = 2) => String(n).padStart(width, "0");
-  const offsetMin = -d.getTimezoneOffset();
-  const sign = offsetMin >= 0 ? "+" : "-";
-  const offH = pad(Math.floor(Math.abs(offsetMin) / 60));
-  const offM = pad(Math.abs(offsetMin) % 60);
-  return (
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
-    `.${pad(d.getMilliseconds(), 3)}${sign}${offH}:${offM}`
-  );
-}
+import { isoNowLocal } from "../time";
 
 export async function getSessionForDate(dateKey: string): Promise<Session | null> {
   const db = await getDb();

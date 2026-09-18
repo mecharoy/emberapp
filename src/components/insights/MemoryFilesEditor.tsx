@@ -2,12 +2,7 @@ import { useEffect, useState } from "react";
 import { getProfileSummary, setProfileSummary } from "../../db/profile";
 import { listMemoryFiles, saveMemoryFile, type MemoryFile, type MemoryFileName } from "../../db/memoryFiles";
 import { MEMORY_FILE_LABELS, refreshMemoryFiles } from "../../ai/memoryFiles";
-
-function stamp(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
+import { localStamp } from "../../time";
 
 type Key = "about" | MemoryFileName;
 
@@ -33,7 +28,7 @@ export default function MemoryFilesEditor() {
 
   async function save() {
     if (!editing) return;
-    if (editing.key === "about") await setProfileSummary(editing.text.trim(), stamp());
+    if (editing.key === "about") await setProfileSummary(editing.text.trim(), localStamp());
     else await saveMemoryFile(editing.key, editing.text, true);
     setEditing(null);
     await load();
