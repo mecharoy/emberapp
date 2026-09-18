@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { deleteEntry, listEntries, moveEntry, saveEntry, setEntryPaper } from "../db/entries";
-import { listCapturesForDate, localDateKey } from "../db/captures";
+import { listCapturesForDate } from "../db/captures";
+import { localDateKey } from "../time";
 import {
   getOrCreateTodaySession,
   linkCapturesToSession,
@@ -173,7 +174,6 @@ export default function Journal({
       setWriting(false);
       resetActions();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, entries]);
 
   function loadNotes(dateKey: string) {

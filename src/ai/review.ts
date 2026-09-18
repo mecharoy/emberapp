@@ -7,7 +7,7 @@ import {
   buildReviewUserPrompt,
   type ReviewPromptInput,
 } from "./prompts/review";
-import { localDateKey } from "../db/captures";
+import { localDateKey } from "../time";
 import { listAllDayMetrics } from "../db/metrics";
 import { getProfileSummary, setProfileSummary } from "../db/profile";
 import { listWeeklyReviews, saveWeeklyReview } from "../db/reviews";
@@ -17,6 +17,7 @@ import { addDays, mondayOf } from "../insights/stats";
 import type { AIProvider } from "./types";
 import { contextBudget } from "./budget";
 import { compactDayLine } from "./compactDays";
+import { localStamp } from "../time";
 
 const claim = z.object({
   claim: z.string().min(1),
@@ -128,12 +129,6 @@ export function mayRewriteProfile(
 ): boolean {
   const isNewest = reviewedWeeks.every((w) => w <= weekStart);
   return isNewest && (dayCount >= 2 || !hasProfile);
-}
-
-function localStamp(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${localDateKey(now)}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 }
 
 async function writeReview(

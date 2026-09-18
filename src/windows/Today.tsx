@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import {
-  deleteCapture,
-  listUnjournaledCaptures,
-  localDateKey,
-} from "../db/captures";
+import { deleteCapture, listUnjournaledCaptures } from "../db/captures";
+import { localDateKey } from "../time";
 import { groupCapturesByDay } from "../captureDays";
 import { computeStreak } from "../db/entries";
 import { dismissReminder, listPendingReminders } from "../db/reminders";
@@ -63,7 +60,6 @@ export default function Today({
   // an entry, for one, journals notes without firing captures:updated.
   useEffect(() => {
     if (active) refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   useEffect(() => {
@@ -73,7 +69,6 @@ export default function Today({
       unlistenCaptures.then((unlisten) => unlisten());
       unlistenReminders.then((unlisten) => unlisten());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleDelete(id: number) {

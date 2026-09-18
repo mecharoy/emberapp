@@ -3,7 +3,7 @@
 // (notes, check-in, checklist), names count double, and the best lines are
 // kept until the budget is used. Pure — unit-tested in relevance.test.ts.
 
-import { estimateTokens } from "./budget";
+import { estimateTokens } from "./tokens";
 
 export interface MemoryLine {
   /** Which file or layer it came from, e.g. "People". */

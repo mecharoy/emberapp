@@ -14,7 +14,6 @@ const h = vi.hoisted(() => {
     for (const m of new Set(sql.match(/\$\d+/g) ?? [])) named[m] = params[Number(m.slice(1)) - 1];
     return named;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return { db: null as any, bind };
 });
 

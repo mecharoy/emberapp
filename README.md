@@ -20,7 +20,8 @@ Both apps check this repo for new versions and tell you when one is out.
 Ember needs a way to talk to a model for the conversation and the writing. Any of:
 
 - a free key from [Groq](https://console.groq.com/keys), [Google AI Studio](https://aistudio.google.com/apikey), [OpenRouter](https://openrouter.ai/keys), [Cerebras](https://cloud.cerebras.ai) or [Mistral](https://console.mistral.ai/api-keys),
-- an [Anthropic](https://console.anthropic.com) key, or
+- an [Anthropic](https://console.anthropic.com) key,
+- an [OpenAI](https://platform.openai.com/api-keys) key, or
 - on Windows, a local model through [Ollama](https://ollama.com) — nothing leaves your computer, and a paired phone can use it too.
 
 A key (when you use one) stays in the app's private storage. Your journal is a SQLite database on your device — no account, and no sync unless you pair a phone with the Windows app yourself. What you write in the conversation goes to the provider you picked. Export everything any time from Settings.

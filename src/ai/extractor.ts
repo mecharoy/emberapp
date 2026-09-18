@@ -22,7 +22,8 @@ import { listEntries } from "../db/entries";
 import { runReviewJobsAndNotify } from "./reviewJobs";
 import type { Entry, Message } from "../db/types";
 import type { AIProvider } from "./types";
-import { contextBudget, estimateTokens } from "./budget";
+import { contextBudget } from "./budget";
+import { estimateTokens } from "./tokens";
 import { clip } from "./relevance";
 import {
   EXTRACT_DAY_SYSTEM_PROMPT,

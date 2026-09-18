@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { listUnjournaledCaptures, localDateKey } from "../db/captures";
+import { listUnjournaledCaptures } from "../db/captures";
+import { localDateKey } from "../time";
 import { getEntryForDate, saveEntry, setEntryPaper } from "../db/entries";
 import { getProfileSummary } from "../db/profile";
 import { getSetting } from "../db/settings";
@@ -85,7 +86,6 @@ export default function EntryReview({ sessionId, date, transcript, writeNow, onW
       return;
     }
     void runGeneration();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [writeNow, phase]);
 
   async function persist(d: EntryDraft, edited: boolean) {

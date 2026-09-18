@@ -11,9 +11,7 @@ import {
 import { ModuleCard } from "./ModuleCard";
 import Sparkline from "./Sparkline";
 import WellbeingCheck from "../WellbeingCheck";
-
-const shortDate = (d: string) =>
-  new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+import { shortDate } from "../../insights/format";
 
 /** The questionnaires the user answered, with their published bands. */
 export default function WellbeingModule({

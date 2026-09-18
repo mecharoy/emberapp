@@ -1,32 +1,6 @@
 import { getDb } from "./client";
 import type { Capture } from "./types";
-
-/**
- * ISO 8601 in LOCAL wall-clock time with a numeric UTC offset
- * (store local time, not UTC — Date.toISOString() would shift the day
- * boundary for anyone not at UTC+0).
- */
-function isoNow(): string {
-  const d = new Date();
-  const pad = (n: number, width = 2) => String(n).padStart(width, "0");
-  const offsetMin = -d.getTimezoneOffset();
-  const sign = offsetMin >= 0 ? "+" : "-";
-  const offH = pad(Math.floor(Math.abs(offsetMin) / 60));
-  const offM = pad(Math.abs(offsetMin) % 60);
-  return (
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
-    `.${pad(d.getMilliseconds(), 3)}${sign}${offH}:${offM}`
-  );
-}
-
-/** YYYY-MM-DD for the user's local calendar day. */
-export function localDateKey(date: Date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+import { isoNowLocal } from "../time";
 
 export async function createCapture(
   text: string,
@@ -35,7 +9,7 @@ export async function createCapture(
   const db = await getDb();
   await db.execute(
     "INSERT INTO captures (created_at, text, mood_emoji) VALUES ($1, $2, $3)",
-    [isoNow(), text, moodEmoji],
+    [isoNowLocal(), text, moodEmoji],
   );
 }
 
@@ -70,20 +44,6 @@ export async function listUnjournaledCaptures(uptoDateKey: string): Promise<Capt
       ORDER BY c.created_at ASC`,
     [uptoDateKey],
   );
-}
-
-/** How many notes are still waiting for a journal entry — the count behind
- *  the evening nudge, so a backlog from a skipped day is reflected in it. */
-export async function countUnjournaledCaptures(uptoDateKey: string): Promise<number> {
-  const db = await getDb();
-  const rows = await db.select<{ count: number }[]>(
-    `SELECT COUNT(*) as count FROM captures c
-       LEFT JOIN entries e ON e.session_id = c.session_id
-      WHERE c.created_at < $1 || 'T~'
-        AND (c.session_id IS NULL OR e.id IS NULL)`,
-    [uptoDateKey],
-  );
-  return rows[0]?.count ?? 0;
 }
 
 /** Notes dropped on one specific day — the capture bar's "N today" badge. */

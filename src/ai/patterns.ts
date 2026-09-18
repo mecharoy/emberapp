@@ -15,7 +15,7 @@ import { listHabitPrefs } from "../db/habitPrefs";
 import { listCheckIns } from "../db/checkins";
 import { listTopics } from "../db/topics";
 import { addDays, parseDayRows } from "../insights/stats";
-import { localDateKey } from "../db/captures";
+import { localDateKey } from "../time";
 import { toCheckInSummary } from "./checkin";
 import { formatCandidate, linkCandidates } from "../insights/links";
 import { contextBudget } from "./budget";

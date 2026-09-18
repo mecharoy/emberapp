@@ -25,11 +25,6 @@ export interface ContextBudget {
 /** Providers that get compact mode unless Settings says otherwise. */
 const SMALL_PROVIDERS = new Set(["local", "cloud", "pc"]);
 
-/** Rough size of a text in tokens. Measured English runs ~3.9–4.6 characters
- *  a token; 3.5 errs on the big side, which is the safe side here. */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 3.5);
-}
 
 function numCtx(value: string): number {
   const n = Number(value);

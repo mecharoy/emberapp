@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { localDateKey } from "../db/captures";
+import { localDateKey } from "../time";
 import {
   addMessage,
   getOrCreateTodaySession,

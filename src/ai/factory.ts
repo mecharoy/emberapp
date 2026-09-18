@@ -7,8 +7,6 @@ import { createOllamaProvider } from "./providers/ollama";
 import { computerTransport } from "./providers/pc";
 import type { AIProvider } from "./types";
 
-export const MOBILE_PROVIDERS = ["cloud", "anthropic", "openai", "pc"] as const;
-
 /**
  * Reads Settings and returns the configured provider.
  * - "cloud": a hosted OpenAI-compatible endpoint with a free tier (Groq,
