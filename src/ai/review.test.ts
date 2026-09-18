@@ -29,7 +29,6 @@ function stubProvider(responses: (string | Error)[]): { provider: AIProvider; pr
         if (r instanceof Error) throw r;
         return r;
       },
-      // eslint-disable-next-line require-yield
       async *chatStream(): AsyncIterable<string> {
         throw new Error("not used by the reviewer");
       },

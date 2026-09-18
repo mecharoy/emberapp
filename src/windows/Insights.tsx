@@ -173,7 +173,6 @@ export default function Insights({
 
   useEffect(() => {
     if (active) refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   useEffect(() => {

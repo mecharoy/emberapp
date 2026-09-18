@@ -60,7 +60,6 @@ export default function Today({
   // an entry, for one, journals notes without firing captures:updated.
   useEffect(() => {
     if (active) refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   useEffect(() => {
@@ -70,7 +69,6 @@ export default function Today({
       unlistenCaptures.then((unlisten) => unlisten());
       unlistenReminders.then((unlisten) => unlisten());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleDelete(id: number) {

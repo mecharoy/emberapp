@@ -86,7 +86,6 @@ export default function EntryReview({ sessionId, date, transcript, writeNow, onW
       return;
     }
     void runGeneration();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [writeNow, phase]);
 
   async function persist(d: EntryDraft, edited: boolean) {

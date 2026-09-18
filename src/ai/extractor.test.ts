@@ -42,7 +42,6 @@ function stubProvider(responses: (string | Error)[]): {
         if (r instanceof Error) throw r;
         return r;
       },
-      // eslint-disable-next-line require-yield
       async *chatStream(): AsyncIterable<string> {
         throw new Error("not used by the extractor");
       },

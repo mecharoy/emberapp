@@ -64,15 +64,6 @@ export async function saveWeeklyReview(input: SaveWeeklyReviewInput): Promise<vo
   );
 }
 
-export async function getReviewForWeek(weekStart: string): Promise<WeeklyReview | null> {
-  const db = await getDb();
-  const rows = await db.select<WeeklyReview[]>(
-    "SELECT * FROM weekly_reviews WHERE week_start = $1",
-    [weekStart],
-  );
-  return rows[0] ?? null;
-}
-
 export async function latestWeeklyReview(): Promise<WeeklyReview | null> {
   const db = await getDb();
   const rows = await db.select<WeeklyReview[]>(

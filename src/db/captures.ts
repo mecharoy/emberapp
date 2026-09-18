@@ -46,20 +46,6 @@ export async function listUnjournaledCaptures(uptoDateKey: string): Promise<Capt
   );
 }
 
-/** How many notes are still waiting for a journal entry — the count behind
- *  the evening nudge, so a backlog from a skipped day is reflected in it. */
-export async function countUnjournaledCaptures(uptoDateKey: string): Promise<number> {
-  const db = await getDb();
-  const rows = await db.select<{ count: number }[]>(
-    `SELECT COUNT(*) as count FROM captures c
-       LEFT JOIN entries e ON e.session_id = c.session_id
-      WHERE c.created_at < $1 || 'T~'
-        AND (c.session_id IS NULL OR e.id IS NULL)`,
-    [uptoDateKey],
-  );
-  return rows[0]?.count ?? 0;
-}
-
 /** Notes dropped on one specific day — the capture bar's "N today" badge. */
 export async function countCapturesForDate(dateKey: string): Promise<number> {
   const db = await getDb();

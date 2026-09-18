@@ -14,7 +14,6 @@ export function createOpenAiProvider(config: { apiKey: string; model: string }):
   if (!config.apiKey) {
     const missing = new ProviderError("No OpenAI API key yet.", "Add one in Settings > AI provider.");
     return {
-      // eslint-disable-next-line require-yield
       async *chatStream() {
         throw missing;
       },

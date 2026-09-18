@@ -174,7 +174,6 @@ export default function Journal({
       setWriting(false);
       resetActions();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, entries]);
 
   function loadNotes(dateKey: string) {
