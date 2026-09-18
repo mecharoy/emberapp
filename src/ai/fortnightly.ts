@@ -22,7 +22,7 @@ import {
   type FortnightPromptInput,
 } from "./prompts/fortnightly";
 import { sourceDaysKey } from "./review";
-import { localDateKey } from "../db/captures";
+import { localDateKey } from "../time";
 import { listEntries } from "../db/entries";
 import { listAllDayMetrics } from "../db/metrics";
 import { listAssessments } from "../db/assessments";
@@ -31,6 +31,7 @@ import { getSetting } from "../db/settings";
 import { addDays, avgOf, parseDayRows } from "../insights/stats";
 import type { DayMetrics, Entry, MemorySummary } from "../db/types";
 import type { AIProvider } from "./types";
+import { localStamp } from "../time";
 
 export const FORTNIGHT_DAYS = 14;
 
@@ -215,12 +216,6 @@ export function runFortnightlySummaryIfDue(): Promise<FortnightResult | null> {
   return running;
 }
 
-function stamp(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${localDateKey(now)}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-}
-
 async function runOnce(): Promise<FortnightResult | null> {
   let last: FortnightResult | null = null;
   for (let i = 0; i < MAX_PER_RUN; i++) {
@@ -271,7 +266,7 @@ async function runOnce(): Promise<FortnightResult | null> {
       periodEnd: numbers.to,
       summary: JSON.stringify(result.summary),
       sourceDays: sourceDaysKey(due.dates),
-      createdAt: stamp(),
+      createdAt: localStamp(),
     });
   }
   return last;

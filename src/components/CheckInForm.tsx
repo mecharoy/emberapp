@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { getCheckIn, saveCheckIn } from "../db/checkins";
 import { listObservations } from "../db/observations";
 import { listDismissedHabitKeys } from "../db/habitPrefs";
-import { localDateKey } from "../db/captures";
+import { localDateKey } from "../time";
 import { DAY_STRETCHES, sleepHoursFrom, toCheckInSummary } from "../ai/checkin";
 import { listAssessments } from "../db/assessments";
 import { getAllSettings, setSetting } from "../db/settings";

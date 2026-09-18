@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import {
-  deleteCapture,
-  listUnjournaledCaptures,
-  localDateKey,
-} from "../db/captures";
+import { deleteCapture, listUnjournaledCaptures } from "../db/captures";
+import { localDateKey } from "../time";
 import { groupCapturesByDay } from "../captureDays";
 import { computeStreak } from "../db/entries";
 import { dismissReminder, listPendingReminders } from "../db/reminders";

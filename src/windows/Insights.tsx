@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { listCaptureTimesSince, localDateKey } from "../db/captures";
+import { listCaptureTimesSince } from "../db/captures";
+import { localDateKey } from "../time";
 import { computeStreak, listEntries } from "../db/entries";
 import { listAllDayMetrics } from "../db/metrics";
 import { addTrackedHabit, listObservations, pinHabit, setObservationPinned } from "../db/observations";

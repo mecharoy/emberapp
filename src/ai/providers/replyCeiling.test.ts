@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/plugin-http", () => ({ fetch: vi.fn() }));
 
-const { replyCeiling, estimateTokens } = await import("./openaiCompatible");
+const { replyCeiling } = await import("./openaiCompatible");
+const { estimateTokens } = await import("../tokens");
 
 describe("replyCeiling", () => {
   it("keeps the usual ceiling for a chat turn", () => {

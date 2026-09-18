@@ -10,7 +10,7 @@ import Insights from "./windows/Insights";
 import Settings from "./windows/Settings";
 import type { JournalFocus } from "./windows/navigation";
 import { firstRunScreen, type FirstRunScreen } from "./install";
-import { localDateKey } from "./db/captures";
+import { localDateKey } from "./time";
 import { conversationState } from "./db/sessions";
 import { startScheduler } from "./scheduler";
 import { backupIfDue } from "./backup";

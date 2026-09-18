@@ -4,6 +4,7 @@
 // conversation, whole for big models and a few relevant lines for small ones.
 
 import { getDb } from "./client";
+import { localStamp } from "../time";
 
 export const MEMORY_FILE_NAMES = ["people", "behaviours", "patterns", "goals"] as const;
 export type MemoryFileName = (typeof MEMORY_FILE_NAMES)[number];
@@ -13,12 +14,6 @@ export interface MemoryFile {
   content: string;
   user_edited: 0 | 1;
   updated_at: string;
-}
-
-function stamp(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 /** Every file, in the fixed order; missing ones come back empty. */
@@ -38,6 +33,6 @@ export async function saveMemoryFile(name: MemoryFileName, content: string, byUs
        content = excluded.content,
        user_edited = MAX(memory_files.user_edited, excluded.user_edited),
        updated_at = excluded.updated_at`,
-    [name, content.trim(), byUser ? 1 : 0, stamp()],
+    [name, content.trim(), byUser ? 1 : 0, localStamp()],
   );
 }

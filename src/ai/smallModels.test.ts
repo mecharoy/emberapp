@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { budgetFor, conversationShares, estimateTokens } from "./budget";
+import { budgetFor, conversationShares } from "./budget";
+import { estimateTokens } from "./tokens";
 import { clip, keywords, pickRelevant, splitLines } from "./relevance";
 import { fitTranscript, windowStart } from "./window";
 import { compactDayLine } from "./compactDays";

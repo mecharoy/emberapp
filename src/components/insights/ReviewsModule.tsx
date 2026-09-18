@@ -11,6 +11,7 @@ import TopicsList from "./TopicsList";
 import MemoryFilesEditor from "./MemoryFilesEditor";
 import type { Topic } from "../../db/types";
 import { ModuleCard } from "./ModuleCard";
+import { shortDate } from "../../insights/format";
 
 const P_LABELS: Record<FormulationKey, { title: string; plain: string }> = {
   presenting: { title: "What was hard", plain: "the main difficulties this month" },
@@ -162,9 +163,6 @@ function parseStats(json: string): MonthStats | null {
     return null;
   }
 }
-
-const shortDate = (d: string) =>
-  new Date(`${d.slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
 function dayCount(sourceDays: string | null): number | null {
   return sourceDays ? sourceDays.split(",").filter(Boolean).length : null;
