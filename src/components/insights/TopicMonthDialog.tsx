@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bar, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { createPortal } from "react-dom";
+import { ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { DayRow } from "../../insights/stats";
 import { topicMonth, type TopicDay, type TopicGroup } from "../../insights/topicMonth";
 import { shortDate } from "../../insights/format";
@@ -44,10 +45,19 @@ function ChartTooltip({ active, payload }: TooltipPayload) {
   );
 }
 
+/** A mood point; larger and tinted by how the entry felt when the name came up. */
+function MoodDot(props: { cx?: number; cy?: number; payload?: TopicDay }) {
+  const { cx, cy, payload } = props;
+  if (cx === undefined || cy === undefined || !payload || payload.mood === null) return null;
+  if (!payload.mentioned) return <circle cx={cx} cy={cy} r={2.5} fill={SERIES.energy} />;
+  return <circle cx={cx} cy={cy} r={5.5} fill={sentimentColor(payload.sentiment ?? 0.6)} stroke={CHROME.surface} strokeWidth={1.5} />;
+}
+
 /**
- * One theme or person, a day at a time for a month: bars on the days it came
- * up (tinted by how the entry felt about it) over the mood line. Opens in the
- * middle of the page from the small chart in the Themes and People lists.
+ * One theme or person, a day at a time for a month: the mood line, with a
+ * band and a larger dot on the days it came up (tinted by how the entry felt
+ * about it). Opens in the middle of the screen from the small chart in the
+ * Themes and People lists.
  */
 export default function TopicMonthDialog({
   group,
@@ -84,14 +94,16 @@ export default function TopicMonthDialog({
   const days = useMemo(() => topicMonth(rows, group, name, month, todayKey), [rows, group, name, month, todayKey]);
   const cameUp = days.filter((d) => d.mentioned).length;
   const journaled = days.filter((d) => d.journaled).length;
-  const points = days.map((d) => ({ ...d, hit: d.mentioned ? 1 : 0 }));
+  const cameUpDays = days.filter((d) => d.mentioned);
 
   function handleClick(state: { activeLabel?: string | number }) {
     const date = typeof state?.activeLabel === "string" ? state.activeLabel : null;
     if (date && entryDates.has(date)) onOpenEntry(date);
   }
 
-  return (
+  // Into the page itself: inside a scrolled section, "fixed" would be measured
+  // from that section and the dialog would open off screen.
+  return createPortal(
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
       <button aria-label="Close" onClick={onClose} className="fade-in absolute inset-0 bg-ink/30" />
       <div
@@ -131,7 +143,7 @@ export default function TopicMonthDialog({
           </div>
           <span className="flex items-center gap-3 text-[12px] text-ink-soft">
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-[2px]" style={{ background: CHROME.muted, opacity: 0.55 }} /> came up (tinted by how it felt)
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: sentimentColor(0.6) }} /> came up (colour: how it felt)
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-0.5 w-3 rounded-full" style={{ background: SERIES.energy }} /> mood
@@ -141,7 +153,7 @@ export default function TopicMonthDialog({
 
         <div className="h-56">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={points} onClick={handleClick} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
+            <ComposedChart data={days} onClick={handleClick} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
               <XAxis
                 dataKey="date"
                 tick={{ fill: CHROME.muted, fontSize: 10.5 }}
@@ -152,19 +164,24 @@ export default function TopicMonthDialog({
                 minTickGap={14}
               />
               <YAxis yAxisId="mood" domain={[1, 10]} ticks={[2, 4, 6, 8, 10]} tick={{ fill: CHROME.muted, fontSize: 10.5 }} stroke="transparent" />
-              <YAxis yAxisId="hit" domain={[0, 1]} hide width={0} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: CHROME.hover }} />
-              <Bar yAxisId="hit" dataKey="hit" barSize={10} radius={[3, 3, 0, 0]} isAnimationActive={false}>
-                {points.map((p) => (
-                  <Cell key={p.date} fill={sentimentColor(p.sentiment ?? 0.6)} fillOpacity={p.mentioned ? 0.55 : 0} />
-                ))}
-              </Bar>
+              <Tooltip content={<ChartTooltip />} cursor={{ stroke: CHROME.axis, strokeDasharray: "2 3" }} />
+              {cameUpDays.map((d) => (
+                <ReferenceLine
+                  key={d.date}
+                  yAxisId="mood"
+                  x={d.date}
+                  stroke={sentimentColor(d.sentiment ?? 0.6)}
+                  strokeWidth={14}
+                  strokeOpacity={0.16}
+                />
+              ))}
               <Line
                 yAxisId="mood"
                 dataKey="mood"
                 stroke={SERIES.energy}
                 strokeWidth={2}
-                dot={{ r: 2.5, fill: SERIES.energy, strokeWidth: 0 }}
+                dot={<MoodDot />}
+                activeDot={false}
                 connectNulls={false}
                 isAnimationActive={!REDUCED_MOTION}
                 animationDuration={600}
@@ -184,6 +201,7 @@ export default function TopicMonthDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
