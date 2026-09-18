@@ -97,6 +97,7 @@ export default function SuggestionsModule({
                         value={naming.name}
                         aria-label="Habit name"
                         onChange={(e) => setNaming({ ...naming, name: e.target.value })}
+                        onKeyDown={(e) => e.key === "Enter" && void track(s, naming.name, naming.description)}
                       />
                     </label>
                     <label className="flex flex-col gap-1">

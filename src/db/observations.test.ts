@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { addTrackedHabit, pinHabit } from "./observations";
+import { addTrackedHabit, pinHabit, rebuildObservations } from "./observations";
 
 // A real SQLite database in memory, built from the app's own migrations.
 const h = vi.hoisted(() => {
@@ -85,5 +85,31 @@ describe("addTrackedHabit", () => {
     );
     await addTrackedHabit("gym", "2026-09-18", "New description");
     expect(withDetail()).toEqual([{ key: "Gym", detail: "Original note" }]);
+  });
+
+  it("trims the description even when called directly, not just from the UI", async () => {
+    await addTrackedHabit("walk after lunch", "2026-09-18", "  A 10-minute walk.  ");
+    expect(withDetail()).toEqual([{ key: "walk after lunch", detail: "A 10-minute walk." }]);
+  });
+});
+
+describe("rebuildObservations", () => {
+  it("preserves a description on a habit that also appears in entries", async () => {
+    seedHabitDay("2026-09-10", "Doomscrolling");
+    await addTrackedHabit("doomscrolling", "2026-09-18", "Less phone right before bed.");
+    expect(withDetail()).toEqual([{ key: "Doomscrolling", detail: "Less phone right before bed." }]);
+
+    await rebuildObservations();
+
+    expect(withDetail()).toEqual([{ key: "Doomscrolling", detail: "Less phone right before bed." }]);
+  });
+
+  it("preserves a description on a habit added from a suggestion that hasn't shown up in an entry yet", async () => {
+    await addTrackedHabit("walk after lunch", "2026-09-18", "A 10-minute walk after lunch.");
+    expect(withDetail()).toEqual([{ key: "walk after lunch", detail: "A 10-minute walk after lunch." }]);
+
+    await rebuildObservations();
+
+    expect(withDetail()).toEqual([{ key: "walk after lunch", detail: "A 10-minute walk after lunch." }]);
   });
 });
