@@ -1,0 +1,12 @@
+# Keep the working tree on LF everywhere; ten files had drifted to CRLF.
+* text=auto eol=lf
+
+# Binaries and the Gradle wrapper must not be touched.
+*.png binary
+*.jpg binary
+*.ico binary
+*.icns binary
+*.mp4 binary
+*.woff2 binary
+*.jar binary
+*.bat text eol=crlf
