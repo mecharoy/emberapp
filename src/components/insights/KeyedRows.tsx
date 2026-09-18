@@ -42,7 +42,7 @@ export default function KeyedRows({
               </span>
             )}
             <span className="w-8 text-right text-[12px] tabular-nums text-ink-faint">{t.count}×</span>
-            <Sparkline values={t.spark} />
+            <Sparkline values={t.spark} width={96} height={28} />
           </button>
         </li>
       ))}

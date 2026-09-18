@@ -51,7 +51,6 @@ export default function ThinkingModule({
           ))}
         </div>
       )}
-      <p className="hint mt-3">Worth noticing, not a judgement. Everyone&rsquo;s mind does these.</p>
     </ModuleCard>
   );
 }

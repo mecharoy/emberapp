@@ -6,6 +6,9 @@ const SCIENCE_BY_TITLE: Record<string, string> = {
   "Mood & energy": "mood",
   "Mood & energy over time": "mood",
   "Week rhythm": "rhythm",
+  "Themes & people over time": "topics",
+  "Themes over time": "topics",
+  "People over time": "topics",
   Themes: "themes",
   People: "people",
   Habits: "habits",
@@ -58,6 +61,7 @@ function useInfo(title: string) {
       >
         <p className="text-[14px] leading-relaxed text-ink">{science.read}</p>
         <p className="text-[13.5px] leading-relaxed text-ink-soft">{science.basis}</p>
+        {science.caution && <p className="text-[13.5px] leading-relaxed text-ink-soft">{science.caution}</p>}
         {unlock && <p className="text-[13.5px] font-medium leading-relaxed text-ember">{unlock}</p>}
         <p className="border-t border-rule pt-2 font-serif text-[13px] italic leading-snug text-ink-faint">{science.source}</p>
       </div>

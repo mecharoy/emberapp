@@ -33,8 +33,7 @@ export default function ActivitiesModule({
       {pullBack && (
         <p className="mb-4 max-w-xl border-l-2 border-ember/60 pl-4 text-[14px] leading-relaxed text-ink">
           Fewer things you enjoy have come up lately: {pullBack.recentPerDay.toFixed(1)} a day in the last two weeks,
-          against {pullBack.beforePerDay.toFixed(1)} before. Doing less of what you enjoy and feeling lower tend to feed
-          each other, so this is worth noticing.
+          against {pullBack.beforePerDay.toFixed(1)} before.
         </p>
       )}
       {stats.length === 0 ? (
@@ -62,16 +61,25 @@ export default function ActivitiesModule({
                   <Dots value={a.mastery?.avg ?? null} label="Achievement" />
                 </td>
                 <td className="py-2 text-[12px] text-ink-soft">
-                  {a.moodEffect
-                    ? `${a.moodEffect.withAvg.toFixed(1)} vs ${a.moodEffect.withoutAvg.toFixed(1)} (n=${a.moodEffect.nWith}/${a.moodEffect.nWithout})`
-                    : ""}
+                  {a.moodOn ? (
+                    <span title={`${a.moodOn.nWith} days with it, ${a.moodOn.nWithout} without`}>
+                      <span className={a.moodEffect ? "font-medium text-ink" : "text-ink"}>{a.moodOn.withAvg.toFixed(1)}</span>{" "}
+                      <span className="text-ink-faint">vs {a.moodOn.withoutAvg.toFixed(1)}</span>
+                    </span>
+                  ) : (
+                    <span className="text-ink-faint" title="Needs at least 3 journaled days with it and 3 without">
+                      –
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
-      <p className="hint mt-3">Patterns, not causes.</p>
+      {stats.length > 0 && (
+        <p className="hint mt-3">Mood: your average on days with the activity, against days without.</p>
+      )}
     </ModuleCard>
   );
 }

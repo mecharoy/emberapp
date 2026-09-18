@@ -279,7 +279,7 @@ export default function HabitsModule({
                 {d.effect && (
                   <p className="text-[13px] leading-snug text-ink-soft">
                     Mood on days with it: {d.effect.withAvg.toFixed(1)}, without: {d.effect.withoutAvg.toFixed(1)} (
-                    {d.effect.nWith} and {d.effect.nWithout} days). Worth watching, not proof.
+                    {d.effect.nWith} and {d.effect.nWithout} days).
                   </p>
                 )}
 

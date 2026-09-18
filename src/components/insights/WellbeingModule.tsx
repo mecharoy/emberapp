@@ -85,7 +85,6 @@ export default function WellbeingModule({
           })}
         </div>
       )}
-      <p className="hint mt-3">Scores screen, they don&rsquo;t diagnose. If one looks worth a closer look, talk to a doctor.</p>
     </ModuleCard>
   );
 }

@@ -121,6 +121,15 @@ describe("activities", () => {
     expect(activityStats(rows)[0].moodEffect).toEqual({ withAvg: 8, withoutAvg: 5, nWith: 12, nWithout: 12 });
   });
 
+  it("shows a plain mood comparison from three days a side, even below the bar", () => {
+    const rows: DayRow[] = [];
+    for (let i = 0; i < 3; i++) rows.push(day(addDays("2026-08-01", i), 7, { activities: [{ key: "walk", pleasure: 2, mastery: 2 }] }));
+    for (let i = 3; i < 6; i++) rows.push(day(addDays("2026-08-01", i), 6));
+    const [walk] = activityStats(rows);
+    expect(walk.moodOn).toEqual({ withAvg: 7, withoutAvg: 6, nWith: 3, nWithout: 3 });
+    expect(walk.moodEffect).toBeNull();
+  });
+
   it("flags a clear pull-back from enjoyable things, and only a clear one", () => {
     const today = "2026-09-30";
     const rows: DayRow[] = [];

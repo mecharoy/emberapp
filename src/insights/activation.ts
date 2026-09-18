@@ -18,8 +18,14 @@ export interface ActivityStat {
   mastery: { avg: number; n: number } | null;
   /** Same bar as What moves your mood: 10 days a side and a 0.8 gap. */
   moodEffect: { withAvg: number; withoutAvg: number; nWith: number; nWithout: number } | null;
+  /** The plain comparison shown in the table: from 3 days a side, whatever the
+   *  gap. `moodEffect` above is the same numbers once they clear the higher bar. */
+  moodOn: { withAvg: number; withoutAvg: number; nWith: number; nWithout: number } | null;
   dates: string[];
 }
+
+/** Days with and without an activity needed before its mood is shown at all. */
+export const MOOD_ON_MIN_DAYS = 3;
 
 function rated(values: (number | null)[]): { avg: number; n: number } | null {
   const nums = values.filter((v): v is number => v !== null);
@@ -51,15 +57,17 @@ export function activityStats(rows: DayRow[]): ActivityStat[] {
       const withDays = tracked.filter(has);
       const withoutDays = tracked.filter((r) => !has(r));
       let moodEffect: ActivityStat["moodEffect"] = null;
-      if (withDays.length >= MIN_SIDE && withoutDays.length >= MIN_SIDE) {
+      let moodOn: ActivityStat["moodOn"] = null;
+      if (withDays.length >= MOOD_ON_MIN_DAYS && withoutDays.length >= MOOD_ON_MIN_DAYS) {
         const withAvg = avgOf(withDays.map((r) => r.mood!))!;
         const withoutAvg = avgOf(withoutDays.map((r) => r.mood!))!;
-        if (Math.abs(withAvg - withoutAvg) >= MIN_GAP) {
-          moodEffect = { withAvg, withoutAvg, nWith: withDays.length, nWithout: withoutDays.length };
+        moodOn = { withAvg, withoutAvg, nWith: withDays.length, nWithout: withoutDays.length };
+        if (withDays.length >= MIN_SIDE && withoutDays.length >= MIN_SIDE && Math.abs(withAvg - withoutAvg) >= MIN_GAP) {
+          moodEffect = moodOn;
         }
       }
       const dates = Array.from(agg.dates).sort();
-      return { key: agg.key, days: dates.length, pleasure: rated(agg.pleasure), mastery: rated(agg.mastery), moodEffect, dates };
+      return { key: agg.key, days: dates.length, pleasure: rated(agg.pleasure), mastery: rated(agg.mastery), moodEffect, moodOn, dates };
     })
     .sort((a, b) => b.days - a.days || a.key.localeCompare(b.key));
 }

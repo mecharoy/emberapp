@@ -49,6 +49,7 @@ import type { JournalFocus } from "./navigation";
 import { LockedModule } from "../components/insights/ModuleCard";
 import VitalsRow from "../components/insights/VitalsRow";
 import MoodEnergyChart from "../components/insights/MoodEnergyChart";
+import TopicsChart from "../components/insights/TopicsChart";
 import WeekRhythm from "../components/insights/WeekRhythm";
 import KeyedRows from "../components/insights/KeyedRows";
 import { ModuleCard } from "../components/insights/ModuleCard";
@@ -356,6 +357,15 @@ export default function Insights({
           need={5}
         />
       )}
+
+      {/* B2. themes and people over time, drawn like the mood chart */}
+      {(() => {
+        const showThemes = !data.hidden.has("themes") && unlocks.themes;
+        const showPeople = !data.hidden.has("people") && unlocks.people;
+        return showThemes || showPeople ? (
+          <TopicsChart rows={rows} todayKey={today} showThemes={showThemes} showPeople={showPeople} />
+        ) : null;
+      })()}
 
       {/* C. week rhythm */}
       {data.hidden.has("rhythm") ? null : unlocks.weekRhythm ? (

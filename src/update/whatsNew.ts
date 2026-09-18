@@ -9,6 +9,24 @@ export interface Highlight {
 }
 
 export const RELEASE_NOTES: Record<string, Highlight[]> = {
+  "1.5.2": [
+    {
+      title: "Themes and people over time",
+      text: "A new chart under Mood & energy shows how often each theme or person came up, week by week.",
+    },
+    {
+      title: "Activities and mood",
+      text: "The mood column now fills in once an activity has come up on a few days.",
+    },
+    {
+      title: "Cleaner Insights",
+      text: "Notes on how to read each section moved behind its i button.",
+    },
+    {
+      title: "Habits",
+      text: "Restore, descriptions and suggestion buttons work as they should.",
+    },
+  ],
   "1.5.0": [
     {
       title: "A checklist for the conversation",

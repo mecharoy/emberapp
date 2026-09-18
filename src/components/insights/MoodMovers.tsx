@@ -32,7 +32,6 @@ export default function MoodMovers({
           ))}
         </ul>
       )}
-      <p className="hint mt-3">Patterns, not causes.</p>
     </ModuleCard>
   );
 }

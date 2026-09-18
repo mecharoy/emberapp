@@ -6,6 +6,8 @@ export interface ModuleScience {
   read: string;
   /** The psychology behind it. */
   basis: string;
+  /** What the section can't tell you. Shown behind the (i), not on the page. */
+  caution?: string;
   source: string;
 }
 
@@ -20,6 +22,11 @@ export const SCIENCE: Record<string, ModuleScience> = {
     basis: "Mood follows the week's structure, for example lifting on weekends when people have more say over their time.",
     source: "Ryan, Bernstein & Brown (2010), Journal of Social and Clinical Psychology",
   },
+  topics: {
+    read: "One line per theme or person: on how many days of each week it came up. Switch names on and off to compare them, and change how far back to look.",
+    basis: "Seeing how often something returns, week by week, shows what is building or easing, which a single day cannot.",
+    source: "Pennebaker & Beall (1986), Journal of Abnormal Psychology; Bolger, Davis & Rafaeli (2003), Annual Review of Psychology",
+  },
   themes: {
     read: "What keeps coming up in your entries, and whether it is growing or fading. Tap one to read the days behind it.",
     basis: "Putting experiences into words and returning to them is how writing helps people make sense of them.",
@@ -33,11 +40,13 @@ export const SCIENCE: Record<string, ModuleScience> = {
   habits: {
     read: "Habits found in your entries. Pin the ones worth tracking to get a calendar and a tick box in the evening check-in.",
     basis: "Habits form through repetition in a steady context, and take weeks to months to feel automatic, so a visible record helps.",
+    caution: "The mood comparison shows how days with and without a habit differ. It is an association, not evidence that the habit changes your mood.",
     source: "Lally, van Jaarsveld, Potts & Wardle (2010), European Journal of Social Psychology",
   },
   movers: {
     read: "Links between your mood and your habits, sleep, people and themes, shown only with at least 10 days on each side and a clear gap.",
-    basis: "Self-monitoring turns vague impressions into patterns you can test. These are patterns, not causes.",
+    basis: "Self-monitoring turns vague impressions into patterns you can test.",
+    caution: "These are associations within your own days. They can suggest what to try, but they do not show that one thing causes another.",
     source: "Bolger, Davis & Rafaeli (2003), Annual Review of Psychology",
   },
   emotions: {
@@ -46,8 +55,9 @@ export const SCIENCE: Record<string, ModuleScience> = {
     source: "Kashdan, Barrett & McKnight (2015), Current Directions in Psychological Science",
   },
   wellbeing: {
-    read: "Your scores on standard questionnaires, taken every two weeks. They screen; they don't diagnose.",
+    read: "Your scores on standard questionnaires, taken every two weeks.",
     basis: "WHO-5 measures wellbeing; PHQ-9 and GAD-7 are the screening questionnaires clinicians use for low mood and anxiety.",
+    caution: "Scores are a screening aid, not a diagnosis. If a result concerns you, talk to a doctor or a mental health professional.",
     source: "Topp et al. (2015); Kroenke, Spitzer & Williams (2001); Spitzer et al. (2006)",
   },
   sleep: {
@@ -63,11 +73,13 @@ export const SCIENCE: Record<string, ModuleScience> = {
   activities: {
     read: "What you did, with how much enjoyment and achievement your words suggest, and how mood compares on days with and without it.",
     basis: "Behavioural activation: doing things that bring enjoyment or a sense of achievement lifts mood, and dropping them lets it sink.",
+    caution: "Enjoyment and achievement are Ember's reading of your words, and the mood columns compare days with and without an activity. They show patterns, not causes. A fall in enjoyable activities and lower mood tend to feed each other, so a drop is worth a look.",
     source: "Jacobson et al. (1996); Dimidjian et al. (2006), Journal of Consulting and Clinical Psychology",
   },
   thinking: {
-    read: "Thinking traps that came up on more than one day, each with words you actually wrote. Worth noticing, not a judgement.",
+    read: "Thinking traps that came up on more than one day, each with words you actually wrote.",
     basis: "Cognitive behavioural therapy teaches people to spot habits of thought like catastrophising, which keep low mood going.",
+    caution: "These are prompts for reflection, not a diagnosis or a judgement. Most people notice such thoughts from time to time. What matters is how often they come up and how much they weigh on you.",
     source: "Beck, Rush, Shaw & Emery (1979), Cognitive Therapy of Depression",
   },
   reviews: {
@@ -82,6 +94,7 @@ export const SCIENCE: Record<string, ModuleScience> = {
 export const UNLOCK: Record<string, string> = {
   mood: "Opens after 5 journal entries.",
   rhythm: "Opens after 14 entries spread over at least 3 different weeks.",
+  topics: "Opens after 10 entries.",
   themes: "Opens after 10 entries.",
   people: "Opens after 10 entries.",
   habits: "Opens as soon as Ember spots a habit in one of your entries.",
