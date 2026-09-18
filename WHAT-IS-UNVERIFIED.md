@@ -10,6 +10,7 @@ so nobody has to guess.
 |---|---|
 | `npm run typecheck` (`tsc --noEmit`) | passes |
 | `npx vitest run` | 370 tests pass, 37 files |
+| `npm run build` (tsc + vite) | passes; web bundle written to `dist/` |
 | `npx tauri icon src-tauri/icons/icon.png` | ran; 18 iOS icons written |
 | JSON configs parse (`tauri.conf.json`, `capabilities/default.json`) | valid |
 
