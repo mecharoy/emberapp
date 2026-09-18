@@ -119,6 +119,7 @@ export default function HabitsModule({
   onPin,
   onPinDiscovered,
   onDismiss,
+  onDescribe,
   onDirection,
 }: {
   rows: DayRow[];
@@ -133,10 +134,13 @@ export default function HabitsModule({
   onPin: (obs: Observation, pinned: boolean) => void;
   onPinDiscovered: (key: string) => void;
   onDismiss: (key: string, dismissed: boolean) => void;
+  onDescribe: (obs: Observation, text: string) => void;
   onDirection: (key: string, direction: "less" | null) => void;
 }) {
   const [month, setMonth] = useState(todayKey.slice(0, 7));
   const [showAllDiscovered, setShowAllDiscovered] = useState(false);
+  // The habit whose description is being written, and what has been typed.
+  const [describing, setDescribing] = useState<{ id: number; text: string } | null>(null);
 
   const prefByKey = new Map(habitPrefs.map((p) => [p.key, p]));
   const dismissed = new Set(habitPrefs.filter((p) => p.dismissed === 1).map((p) => p.key));
@@ -216,7 +220,43 @@ export default function HabitsModule({
                     </div>
                   </div>
                 </div>
-                {obs.detail && <p className="max-w-xs text-[12.5px] leading-snug text-ink-faint">{obs.detail}</p>}
+                {describing?.id === obs.id ? (
+                  <div className="flex max-w-xs flex-col gap-2">
+                    <textarea
+                      autoFocus
+                      rows={2}
+                      className="input min-h-[52px] py-1 text-[14px] leading-snug"
+                      aria-label={`Description of ${obs.key}`}
+                      value={describing.text}
+                      onChange={(e) => setDescribing({ id: obs.id, text: e.target.value })}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          onDescribe(obs, describing.text);
+                          setDescribing(null);
+                        }}
+                        className="btn-chip"
+                      >
+                        Save
+                      </button>
+                      <button onClick={() => setDescribing(null)} className="btn-ghost min-h-[30px] py-1 text-[12.5px]">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : obs.detail ? (
+                  <p className="max-w-xs text-[12.5px] leading-snug text-ink-faint">
+                    {obs.detail}{" "}
+                    <button onClick={() => setDescribing({ id: obs.id, text: obs.detail ?? "" })} className="underline decoration-rule-strong underline-offset-2">
+                      Edit
+                    </button>
+                  </p>
+                ) : (
+                  <button onClick={() => setDescribing({ id: obs.id, text: "" })} className="self-start text-[12.5px] text-ink-faint underline decoration-rule-strong underline-offset-2">
+                    Add a description
+                  </button>
+                )}
                 <MonthHeatMap cells={cells} less={less} />
               </div>
 
@@ -321,7 +361,13 @@ export default function HabitsModule({
             {Array.from(dismissed).map((k) => (
               <li key={k} className="flex items-center gap-2 text-[13px] text-ink-soft">
                 {k}
-                <button onClick={() => onDismiss(k, false)} className="btn-chip min-h-[26px] px-2.5 py-0.5 text-[12px]">
+                <button
+                  onClick={() => {
+                    setShowAllDiscovered(true); // so it shows even past the first six
+                    onDismiss(k, false);
+                  }}
+                  className="btn-chip min-h-[26px] px-2.5 py-0.5 text-[12px]"
+                >
                   Restore
                 </button>
               </li>

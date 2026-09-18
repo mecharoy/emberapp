@@ -106,6 +106,12 @@ export async function addTrackedHabit(key: string, today: string, detail?: strin
   }
 }
 
+/** Sets or clears the small description shown under a tracked habit. */
+export async function setObservationDetail(id: number, detail: string): Promise<void> {
+  const db = await getDb();
+  await db.execute("UPDATE observations SET detail = $1 WHERE id = $2", [detail.trim() || null, id]);
+}
+
 /** User promotes/demotes a discovered habit to a tracked one. */
 export async function setObservationPinned(id: number, pinned: boolean): Promise<void> {
   const db = await getDb();

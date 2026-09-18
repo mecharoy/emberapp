@@ -27,14 +27,15 @@ export default function SuggestionsModule({
   onFind: () => void;
   onTrack: (s: Suggestion, name: string, description: string) => Promise<void>;
 }) {
-  const [added, setAdded] = useState<Set<string>>(new Set());
+  // The name each suggestion was added under, since it can be edited first.
+  const [added, setAdded] = useState<Map<string, string>>(new Map());
   // Only one habit is edited at a time.
   const [naming, setNaming] = useState<{ title: string; name: string; description: string } | null>(null);
 
   async function track(s: Suggestion, name: string, description: string) {
     if (!name.trim()) return;
     await onTrack(s, name.trim(), description);
-    setAdded((prev) => new Set(prev).add(s.title));
+    setAdded((prev) => new Map(prev).set(s.title, name.trim()));
     setNaming(null);
   }
 
@@ -79,7 +80,9 @@ export default function SuggestionsModule({
         <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {patterns.suggestions.map((s) => {
             const defaultName = (s.habit || s.title).trim();
-            const already = added.has(s.title) || trackedHabits.has(defaultName.toLowerCase());
+            // Only while it is still one of the tracked habits: unpin or remove
+            // it and the button comes back.
+            const already = trackedHabits.has((added.get(s.title) ?? defaultName).trim().toLowerCase());
             return (
               <li key={s.title} className="flex flex-col gap-2 rounded-lg border border-rule bg-sheet/60 p-4">
                 <span className="text-[11.5px] uppercase tracking-wide text-ink-faint">{KIND_LABEL[s.kind]}</span>

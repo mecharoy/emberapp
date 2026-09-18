@@ -3,7 +3,7 @@ import { listCaptureTimesSince } from "../db/captures";
 import { localDateKey } from "../time";
 import { computeStreak, listEntries } from "../db/entries";
 import { listAllDayMetrics } from "../db/metrics";
-import { addTrackedHabit, listObservations, pinHabit, setObservationPinned } from "../db/observations";
+import { addTrackedHabit, listObservations, pinHabit, setObservationDetail, setObservationPinned } from "../db/observations";
 import { deleteTopic, listTopics, setTopicStatus } from "../db/topics";
 import { findPatterns, loadPatterns, type Patterns, type Suggestion } from "../ai/patterns";
 import SuggestionsModule from "../components/insights/SuggestionsModule";
@@ -237,6 +237,22 @@ export default function Insights({
 
   async function handleDismiss(key: string, isDismissed: boolean) {
     await setHabitDismissed(key, isDismissed);
+    if (!isDismissed) {
+      // A restored habit comes back among the ones spotted in the entries. One
+      // that never appeared in an entry (a suggestion they took up) has no
+      // place there, so it goes back to being tracked.
+      const canonical = key.trim().toLowerCase();
+      const inEntries = rows.some((r) => r.x.habits.some((h) => h.done && h.key.trim().toLowerCase() === canonical));
+      if (!inEntries) {
+        const old = data?.habitObservations.find((o) => o.key.trim().toLowerCase() === canonical);
+        await addTrackedHabit(old?.key ?? key, today, old?.detail ?? undefined);
+      }
+    }
+    refresh();
+  }
+
+  async function handleDescribe(obs: Observation, text: string) {
+    await setObservationDetail(obs.id, text);
     refresh();
   }
 
@@ -257,6 +273,8 @@ export default function Insights({
   }
 
   async function handleTrackSuggestion(s: Suggestion, name: string, description: string) {
+    // Adding a habit they once marked "not a habit" brings it back.
+    await setHabitDismissed(name, false);
     await addTrackedHabit(name, today, description.trim());
     if (s.kind === "cut back") await setHabitDirection(name, "less");
     await refresh();
@@ -401,6 +419,7 @@ export default function Insights({
           onPin={handlePin}
           onPinDiscovered={handlePinDiscovered}
           onDismiss={handleDismiss}
+          onDescribe={handleDescribe}
           onDirection={handleDirection}
           patterns={data.patterns}
           patternsState={patternsState}
