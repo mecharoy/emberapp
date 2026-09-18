@@ -6,25 +6,31 @@ import type { Observation } from "./types";
 /**
  * Rebuilds the observations table from every day_metrics row (see
  * observationFold.ts for why derive-and-replace beats incremental updates).
- * User-set pinned flags survive the rebuild, matched case-insensitively.
+ * User-set pinned flags and descriptions survive the rebuild, matched
+ * case-insensitively.
  */
 export async function rebuildObservations(): Promise<void> {
   const db = await getDb();
   const metrics = await listAllDayMetrics();
   const aggregates = foldMetricsIntoObservations(metrics);
 
-  const existing = await db.select<Observation[]>("SELECT kind, key, pinned, first_seen, last_seen FROM observations");
+  const existing = await db.select<Observation[]>("SELECT kind, key, detail, pinned, first_seen, last_seen FROM observations");
   const pinnedIdentities = new Set(
     existing.filter((o) => o.pinned === 1).map((o) => `${o.kind} ${canonicalKey(o.key)}`),
+  );
+  const detailByIdentity = new Map(
+    existing.filter((o) => o.detail).map((o) => [`${o.kind} ${canonicalKey(o.key)}`, o.detail]),
   );
 
   await db.execute("DELETE FROM observations");
   for (const a of aggregates) {
-    const pinned = pinnedIdentities.has(`${a.kind} ${canonicalKey(a.key)}`) ? 1 : 0;
+    const identity = `${a.kind} ${canonicalKey(a.key)}`;
+    const pinned = pinnedIdentities.has(identity) ? 1 : 0;
+    const detail = detailByIdentity.get(identity) ?? null;
     await db.execute(
       `INSERT INTO observations (kind, key, detail, sentiment, occurrences, first_seen, last_seen, pinned)
-       VALUES ($1, $2, NULL, $3, $4, $5, $6, $7)`,
-      [a.kind, a.key, a.sentiment, a.occurrences, a.first_seen, a.last_seen, pinned],
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [a.kind, a.key, detail, a.sentiment, a.occurrences, a.first_seen, a.last_seen, pinned],
     );
   }
   // A habit they added themselves (from a suggestion) may not be in any entry
@@ -34,8 +40,8 @@ export async function rebuildObservations(): Promise<void> {
     if (o.kind !== "habit" || o.pinned !== 1 || derived.has(`habit ${canonicalKey(o.key)}`)) continue;
     await db.execute(
       `INSERT INTO observations (kind, key, detail, sentiment, occurrences, first_seen, last_seen, pinned)
-       VALUES ('habit', $1, NULL, NULL, 0, $2, $3, 1)`,
-      [o.key, o.first_seen, o.last_seen],
+       VALUES ('habit', $1, $2, NULL, 0, $3, $4, 1)`,
+      [o.key, o.detail, o.first_seen, o.last_seen],
     );
   }
 }
@@ -65,7 +71,7 @@ export async function listTopObservations(todayKey: string, limit = 15): Promise
 /** Pins a habit spotted in the entries. The observations table is only
  *  rebuilt after an extraction, so when it hasn't caught up with the day
  *  metrics yet, it is rebuilt first. */
-export async function pinHabit(key: string): Promise<void> {
+export async function pinHabit(key: string, detail?: string): Promise<void> {
   const db = await getDb();
   const find = async () =>
     (await listObservations("habit")).find((o) => canonicalKey(o.key) === canonicalKey(key));
@@ -76,21 +82,26 @@ export async function pinHabit(key: string): Promise<void> {
   }
   if (!obs) throw new Error(`No habit called "${key}" in your entries.`);
   await db.execute("UPDATE observations SET pinned = 1 WHERE id = $1", [obs.id]);
+  const trimmedDetail = detail?.trim();
+  if (trimmedDetail && !obs.detail) {
+    await db.execute("UPDATE observations SET detail = $1 WHERE id = $2", [trimmedDetail, obs.id]);
+  }
 }
 
 /** Starts tracking a habit by name, whether or not it has come up in an
- *  entry yet (a suggestion they took up). */
-export async function addTrackedHabit(key: string, today: string): Promise<void> {
+ *  entry yet (a suggestion they took up). `detail` is the small description
+ *  shown alongside the habit, e.g. the fuller suggestion it came from. */
+export async function addTrackedHabit(key: string, today: string, detail?: string): Promise<void> {
   const name = key.trim();
   if (!name) return;
   try {
-    await pinHabit(name);
+    await pinHabit(name, detail);
   } catch {
     const db = await getDb();
     await db.execute(
       `INSERT INTO observations (kind, key, detail, sentiment, occurrences, first_seen, last_seen, pinned)
-       VALUES ('habit', $1, NULL, NULL, 0, $2, $2, 1)`,
-      [name, today],
+       VALUES ('habit', $1, $2, NULL, 0, $3, $3, 1)`,
+      [name, detail?.trim() || null, today],
     );
   }
 }

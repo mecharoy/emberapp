@@ -25,15 +25,15 @@ export default function SuggestionsModule({
   /** Canonical keys of habits already pinned. */
   trackedHabits: Set<string>;
   onFind: () => void;
-  onTrack: (s: Suggestion, name: string) => Promise<void>;
+  onTrack: (s: Suggestion, name: string, description: string) => Promise<void>;
 }) {
   const [added, setAdded] = useState<Set<string>>(new Set());
-  // Only one habit name is edited at a time.
-  const [naming, setNaming] = useState<{ title: string; name: string } | null>(null);
+  // Only one habit is edited at a time.
+  const [naming, setNaming] = useState<{ title: string; name: string; description: string } | null>(null);
 
-  async function track(s: Suggestion, name: string) {
+  async function track(s: Suggestion, name: string, description: string) {
     if (!name.trim()) return;
-    await onTrack(s, name.trim());
+    await onTrack(s, name.trim(), description);
     setAdded((prev) => new Set(prev).add(s.title));
     setNaming(null);
   }
@@ -88,24 +88,42 @@ export default function SuggestionsModule({
                 {already ? (
                   <span className="text-[12.5px] text-moss">In your habits</span>
                 ) : naming?.title === s.title ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      autoFocus
-                      className="input min-h-[34px] flex-1 py-1 text-[14px]"
-                      value={naming.name}
-                      aria-label="Habit name"
-                      onChange={(e) => setNaming({ title: s.title, name: e.target.value })}
-                      onKeyDown={(e) => e.key === "Enter" && void track(s, naming.name)}
-                    />
-                    <button onClick={() => void track(s, naming.name)} className="btn-chip">
-                      Add
-                    </button>
-                    <button onClick={() => setNaming(null)} className="btn-ghost min-h-[30px] py-1 text-[12.5px]">
-                      Cancel
-                    </button>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11.5px] uppercase tracking-wide text-ink-faint">Habit name</span>
+                      <input
+                        autoFocus
+                        className="input min-h-[34px] py-1 text-[14px]"
+                        value={naming.name}
+                        aria-label="Habit name"
+                        onChange={(e) => setNaming({ ...naming, name: e.target.value })}
+                        onKeyDown={(e) => e.key === "Enter" && void track(s, naming.name, naming.description)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11.5px] uppercase tracking-wide text-ink-faint">Description</span>
+                      <textarea
+                        className="input min-h-[52px] py-1 text-[14px] leading-snug"
+                        value={naming.description}
+                        aria-label="Habit description"
+                        rows={2}
+                        onChange={(e) => setNaming({ ...naming, description: e.target.value })}
+                      />
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button onClick={() => void track(s, naming.name, naming.description)} className="btn-chip">
+                        Add
+                      </button>
+                      <button onClick={() => setNaming(null)} className="btn-ghost min-h-[30px] py-1 text-[12.5px]">
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <button onClick={() => setNaming({ title: s.title, name: defaultName })} className="btn-chip self-start">
+                  <button
+                    onClick={() => setNaming({ title: s.title, name: defaultName, description: s.title })}
+                    className="btn-chip self-start"
+                  >
                     + Add to habits
                   </button>
                 )}
