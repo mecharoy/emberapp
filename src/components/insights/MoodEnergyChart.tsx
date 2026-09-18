@@ -90,6 +90,12 @@ export default function MoodEnergyChart({
             <span className="flex items-center gap-1.5">
               <span className="h-0.5 w-3 rounded-full" style={{ background: SERIES.energy }} /> energy
             </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full border-[1.5px]" style={{ borderColor: SERIES.mood }} /> best day
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full border-[1.5px]" style={{ borderColor: CHROME.muted }} /> hardest day
+            </span>
           </span>
           <div className="flex gap-0.5">
             {RANGES.map((r) => (

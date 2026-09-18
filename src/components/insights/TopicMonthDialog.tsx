@@ -5,7 +5,7 @@ import type { DayRow } from "../../insights/stats";
 import { topicMonth, type TopicDay, type TopicGroup } from "../../insights/topicMonth";
 import { shortDate } from "../../insights/format";
 import { useBackButton } from "../../useBackButton";
-import { CHROME, REDUCED_MOTION, SERIES, sentimentColor } from "./palette";
+import { CHROME, REDUCED_MOTION, sentimentColor } from "./palette";
 
 function monthLabel(month: string): string {
   return new Date(`${month}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
@@ -49,8 +49,8 @@ function ChartTooltip({ active, payload }: TooltipPayload) {
 function MoodDot(props: { cx?: number; cy?: number; payload?: TopicDay }) {
   const { cx, cy, payload } = props;
   if (cx === undefined || cy === undefined || !payload || payload.mood === null) return null;
-  if (!payload.mentioned) return <circle cx={cx} cy={cy} r={2.5} fill={SERIES.energy} />;
-  return <circle cx={cx} cy={cy} r={5.5} fill={sentimentColor(payload.sentiment ?? 0.6)} stroke={CHROME.surface} strokeWidth={1.5} />;
+  if (!payload.mentioned) return <circle cx={cx} cy={cy} r={2.5} fill={CHROME.ink} />;
+  return <circle cx={cx} cy={cy} r={5.5} fill={sentimentColor(payload.sentiment ?? 0)} stroke={CHROME.surface} strokeWidth={1.5} />;
 }
 
 /**
@@ -141,12 +141,21 @@ export default function TopicMonthDialog({
               &rsaquo;
             </button>
           </div>
-          <span className="flex items-center gap-3 text-[12px] text-ink-soft">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-soft">
+            <span className="text-ink-faint">Came up, felt:</span>
+            {(
+              [
+                ["good", 0.7],
+                ["mixed", 0],
+                ["heavy", -0.7],
+              ] as const
+            ).map(([label, value]) => (
+              <span key={label} className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: sentimentColor(value) }} /> {label}
+              </span>
+            ))}
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: sentimentColor(0.6) }} /> came up (colour: how it felt)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-0.5 w-3 rounded-full" style={{ background: SERIES.energy }} /> mood
+              <span className="h-0.5 w-3 rounded-full" style={{ background: CHROME.ink }} /> mood
             </span>
           </span>
         </div>
@@ -170,7 +179,7 @@ export default function TopicMonthDialog({
                   key={d.date}
                   yAxisId="mood"
                   x={d.date}
-                  stroke={sentimentColor(d.sentiment ?? 0.6)}
+                  stroke={sentimentColor(d.sentiment ?? 0)}
                   strokeWidth={14}
                   strokeOpacity={0.16}
                 />
@@ -178,7 +187,7 @@ export default function TopicMonthDialog({
               <Line
                 yAxisId="mood"
                 dataKey="mood"
-                stroke={SERIES.energy}
+                stroke={CHROME.ink}
                 strokeWidth={2}
                 dot={<MoodDot />}
                 activeDot={false}

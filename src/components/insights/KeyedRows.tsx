@@ -21,6 +21,7 @@ export default function KeyedRows({
     return <p className="hint">Nothing yet. Save a few more entries.</p>;
   }
   return (
+    <>
     <ul className="-mx-2 flex flex-col">
       {items.map((t) => (
         <li key={t.key} className="flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-paper-deep">
@@ -57,5 +58,21 @@ export default function KeyedRows({
         </li>
       ))}
     </ul>
+    <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-faint">
+      Dot, how it felt:
+      {(
+        [
+          ["good", 0.7],
+          ["mixed", 0],
+          ["heavy", -0.7],
+        ] as const
+      ).map(([label, value]) => (
+        <span key={label} className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full" style={{ background: sentimentColor(value) }} aria-hidden="true" />
+          {label}
+        </span>
+      ))}
+    </p>
+    </>
   );
 }
