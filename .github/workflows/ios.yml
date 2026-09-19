@@ -141,69 +141,26 @@ jobs:
           p "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string ember"
           /usr/libexec/PlistBuddy -c "Print" "$PLIST"
 
-      # cargo-mobile2 names the scheme after the crate, and names the build
-      # configurations in lower case — "release", not "Release". Asking
-      # xcodebuild for a configuration that doesn't exist doesn't fail: it
-      # quietly builds debug instead, and Tauri's debug build script then goes
-      # looking for the `tauri ios dev` server and aborts. So both names are
-      # read back out of the project rather than guessed.
-      - name: Find the scheme and the release configuration
-        run: |
-          set -euo pipefail
-          PROJECT="$(find src-tauri/gen/apple -maxdepth 1 -name '*.xcodeproj' | head -1)"
-          xcodebuild -list -project "$PROJECT"
-          xcodebuild -list -project "$PROJECT" -json > build-list.json
-          cat build-list.json
-          SCHEME="$(python3 -c "import json;print(json.load(open('build-list.json'))['project']['schemes'][0])")"
-          # Xcode has called this key different things; find whichever list
-          # holds the configurations rather than depending on its name.
-          CONFIG="$(python3 -c "import json;p=json.load(open('build-list.json'))['project'];c=next((v for k,v in p.items() if 'config' in k.lower() and isinstance(v,list) and v),[]);print(next((x for x in c if x.lower()=='release'), c[-1] if c else 'release'))")"
-          echo "Project: $PROJECT"
-          echo "Scheme: $SCHEME"
-          echo "Configuration: $CONFIG"
-          {
-            echo "PROJECT=$PROJECT"
-            echo "SCHEME=$SCHEME"
-            echo "CONFIG=$CONFIG"
-          } >> "$GITHUB_ENV"
+      # ---- 4. Swift, the Rust static library, and linking ----
+      #
+      # This has to go through Tauri's own command, not a bare xcodebuild: the
+      # "Build Rust Code" phase inside the generated project calls back into
+      # `tauri ios xcode-script`, which reads options the CLI writes to a temp
+      # file first. Run xcodebuild directly and that phase panics on the
+      # missing file, whatever configuration is asked for.
+      #
+      # The simulator target is what makes this work without an Apple account:
+      # a simulator build is never code-signed. A device build is the same
+      # Swift and the same Rust, and step 1 above already compiles that Rust
+      # for a real iPhone, so what is left unproven here is only the signing.
+      - name: Build for the iOS Simulator (no signing needed)
+        run: npx tauri ios build --ci --verbose --target aarch64-sim
 
-      # ---- 4. Swift and linking, unsigned ----
-      # No Apple account, so nothing is signed; this only has to compile and
-      # link. A signed .ipa needs a certificate and is a separate job.
-      - name: Compile and link the app (unsigned)
+      - name: What came out
+        if: always()
         run: |
-          set -euo pipefail
-          mkdir -p build
-          # The whole log is kept and the step's exit code is xcodebuild's own:
-          # piping it through grep would hand the step grep's exit code, and a
-          # failed build would come out green.
-          set +e
-          xcodebuild build \
-            -project "$PROJECT" \
-            -scheme "$SCHEME" \
-            -configuration "$CONFIG" \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            > build/xcodebuild.log 2>&1
-          STATUS=$?
-          set -e
-          if [ "$STATUS" -ne 0 ]; then
-            echo "::group::what xcodebuild complained about"
-            grep -nE 'error:|panicked|BUILD FAILED|failed with a nonzero' build/xcodebuild.log | tail -40 || true
-            echo "::endgroup::"
-            echo "::group::last 120 lines of the log"
-            tail -120 build/xcodebuild.log
-            echo "::endgroup::"
-            exit "$STATUS"
-          fi
-          echo "::group::warnings"
-          grep -E 'warning:' build/xcodebuild.log | sort -u | head -40 || true
-          echo "::endgroup::"
-          ls -la "build/DerivedData/Build/Products/$CONFIG-iphoneos/"
+          find src-tauri/gen/apple -name '*.app' -maxdepth 6 -print 2>/dev/null || true
+          find src-tauri/gen/apple -name '*.ipa' -maxdepth 6 -print 2>/dev/null || true
 
       - name: Keep the unsigned app and the build log
         if: always()
@@ -211,7 +168,6 @@ jobs:
         with:
           name: ember-ios-unsigned
           path: |
-            build/DerivedData/Build/Products/*-iphoneos/*.app
-            build/xcodebuild.log
+            src-tauri/gen/apple/build/**/*.app
           if-no-files-found: warn
           retention-days: 14
