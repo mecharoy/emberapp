@@ -69,3 +69,56 @@ Action: npm run typecheck
 Cause: getSetting and getProvider were only used by the code paths that
        handled the "pc" provider.
 Fix: removed both imports. typecheck clean.
+
+---
+
+Problem: the widget didn't compile: "'containerBackground(_:for:)' is only
+         available in iOS 17.0 or newer".
+Location: ios/EmberWidget/EmberWidget.swift:61
+Action: first CI run on a macOS runner (GitHub Actions)
+Cause: the widget was written against iOS 16, but from iOS 17 a widget must
+       declare its own background, and containerBackground - the only way to
+       do that - doesn't exist before 17.
+Fix: EmberWidget's deployment target is iOS 17.0 (the app stays at 16), and
+     the three structs carry @available(iOS 17.0, *). The CI Swift typecheck
+     now uses each target's real minimum version instead of 16 for all three.
+
+---
+
+Problem: xcodebuild reported BUILD FAILED with no "error:" line anywhere, and
+         the build had quietly used the debug configuration.
+Location: .github/workflows/ios.yml, the xcodebuild step
+Action: second CI run
+Cause: cargo-mobile2 names the build configurations in lower case - "release",
+       not "Release". Asking xcodebuild for a configuration a project doesn't
+       have is not an error: it builds debug instead. Tauri's debug build
+       script then looks for the `tauri ios dev` server and panics.
+Fix: read the scheme and the release configuration out of
+     `xcodebuild -list -json` rather than guessing them.
+
+---
+
+Problem: reading the configurations from that JSON threw KeyError:
+         'buildConfigurations'.
+Location: .github/workflows/ios.yml
+Action: third CI run
+Cause: `xcodebuild -list -json` doesn't use that key name.
+Fix: look for whichever key holds a non-empty list and has "config" in its
+     name, and fall back to "release".
+
+---
+
+Problem: even building the real "release" configuration, the Rust build phase
+         panicked: "failed to read missing addr file
+         /var/folders/.../dev.abhij.ember.ios-server-addr".
+Location: .github/workflows/ios.yml, and Tauri's generated Xcode project
+Action: fourth CI run
+Cause: the generated project's "Build Rust Code" phase calls back into
+       `tauri ios xcode-script`, which reads options the Tauri CLI writes to a
+       temp file before it starts xcodebuild. Running xcodebuild directly
+       skips that, so the file never exists. No configuration fixes this - a
+       bare xcodebuild simply cannot build a Tauri iOS project.
+Fix: build through `npx tauri ios build` instead. The target is the simulator
+     (--target aarch64-sim), because a simulator build is never code-signed
+     and so needs no Apple account. The Rust for a real iPhone is compiled
+     separately in an earlier step.
