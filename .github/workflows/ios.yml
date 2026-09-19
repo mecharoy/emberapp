@@ -1,0 +1,194 @@
+name: iOS build
+
+# Ember for iPhone was written on Windows and has never been compiled: iOS
+# builds only on macOS. This workflow is the substitute for a Mac. It doesn't
+# sign anything and it can't run the app — it answers the one question that
+# can't be answered from Windows: does all of this actually build?
+#
+# macOS runners are free on public repositories, so this costs nothing.
+
+on:
+  push:
+    branches: [ios]
+    paths-ignore:
+      - "**.md"
+  pull_request:
+    branches: [ios]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Everything that already passes on Windows, re-checked on Linux in seconds.
+  # If this fails, the macOS job below was never going to work either.
+  web:
+    name: Types and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npx vitest run
+
+      - name: Build the web bundle
+        run: npm run build
+
+  ios:
+    name: Compile for iPhone
+    needs: web
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Which Xcode and SDK
+        run: |
+          xcodebuild -version
+          echo "iphoneos SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - name: Build the web bundle
+        run: npm run build
+
+      # ---- 1. The Rust core, including src-tauri/src/ios_extras.rs ----
+      # The part most likely to be wrong, and the cheapest to find out about.
+      # None of it has ever seen the iOS SDK.
+      - name: Compile the Rust core for iOS
+        working-directory: src-tauri
+        run: cargo build --lib --target aarch64-apple-ios
+
+      # ---- 2. The loose Swift files in ios/ ----
+      # These are not in the Xcode project: their targets are added by hand on
+      # a Mac (BUILDING-ON-A-MAC.md). Typechecking them here is the only way a
+      # compiler looks at them at all.
+      - name: Typecheck the Swift that isn't in the project yet
+        run: |
+          set -euo pipefail
+          SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+          check() {
+            local name="$1"; shift
+            echo "::group::$name"
+            xcrun --sdk iphoneos swiftc -typecheck -parse-as-library \
+              -sdk "$SDK" -target arm64-apple-ios16.0 "$@"
+            echo "::endgroup::"
+          }
+          check "app target" \
+            ios/Shared/EmberInbox.swift \
+            ios/Shared/EmberIntents.swift \
+            ios/App/EmberLaunch.swift \
+            ios/App/EmberNotificationHandler.swift
+          check "EmberWidget target (widget + Control Centre)" \
+            ios/Shared/EmberInbox.swift \
+            ios/Shared/EmberIntents.swift \
+            ios/EmberWidget/EmberWidget.swift
+          check "EmberShare target (share sheet)" \
+            ios/Shared/EmberInbox.swift \
+            ios/EmberShare/ShareViewController.swift
+
+      # ---- 3. The Xcode project ----
+      # Not committed: cargo-mobile2 generates it. This step proves
+      # `tauri ios init` works against this config at all.
+      - name: Generate the Xcode project
+        run: npx tauri ios init --ci --skip-targets-install
+
+      # The keys BUILDING-ON-A-MAC.md says to add by hand. Doing it here means
+      # CI builds the real thing, and keeps the instructions honest.
+      - name: Add the Info.plist keys Ember needs
+        run: |
+          set -euo pipefail
+          PLIST="$(find src-tauri/gen/apple -maxdepth 2 -name 'Info.plist' | head -1)"
+          echo "Info.plist: $PLIST"
+          p() { /usr/libexec/PlistBuddy -c "$1" "$PLIST" 2>/dev/null || true; }
+          # Backups show up in Files > On My iPhone > Ember.
+          p "Delete :UIFileSharingEnabled"
+          p "Add :UIFileSharingEnabled bool true"
+          p "Delete :LSSupportsOpeningDocumentsInPlace"
+          p "Add :LSSupportsOpeningDocumentsInPlace bool true"
+          # The widget, the Control Centre button and Shortcuts open ember://note.
+          p "Delete :CFBundleURLTypes"
+          p "Add :CFBundleURLTypes array"
+          p "Add :CFBundleURLTypes:0 dict"
+          p "Add :CFBundleURLTypes:0:CFBundleURLName string dev.abhij.ember.ios"
+          p "Add :CFBundleURLTypes:0:CFBundleURLSchemes array"
+          p "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string ember"
+          /usr/libexec/PlistBuddy -c "Print" "$PLIST"
+
+      # ---- 4. Swift and linking, unsigned ----
+      # No Apple account, so nothing is signed; this only has to compile and
+      # link. A signed .ipa needs a certificate and is a separate job.
+      - name: Compile and link the app (unsigned)
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          PROJECT="$(find src-tauri/gen/apple -maxdepth 1 -name '*.xcodeproj' | head -1)"
+          echo "Project: $PROJECT"
+          xcodebuild -list -project "$PROJECT"
+          SCHEME="$(xcodebuild -list -project "$PROJECT" -json \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["project"]["schemes"][0])')"
+          echo "Scheme: $SCHEME"
+          # The whole log is kept and the step's exit code is xcodebuild's own:
+          # piping it through grep would hand the step grep's exit code, and a
+          # failed build would come out green.
+          set +e
+          xcodebuild build \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            > build/xcodebuild.log 2>&1
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::group::what xcodebuild complained about"
+            grep -E 'error:|BUILD FAILED' build/xcodebuild.log | tail -60 || true
+            echo "::endgroup::"
+            echo "::group::last 200 lines of the log"
+            tail -200 build/xcodebuild.log
+            echo "::endgroup::"
+            exit "$STATUS"
+          fi
+          echo "::group::warnings"
+          grep -E 'warning:' build/xcodebuild.log | sort -u | head -40 || true
+          echo "::endgroup::"
+          ls -la build/DerivedData/Build/Products/Release-iphoneos/
+
+      - name: Keep the unsigned app and the build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ember-ios-unsigned
+          path: |
+            build/DerivedData/Build/Products/Release-iphoneos/*.app
+            build/xcodebuild.log
+          if-no-files-found: warn
+          retention-days: 14
