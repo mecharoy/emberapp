@@ -82,7 +82,10 @@ def widget_target() -> dict:
         "settings": {
             "base": {
                 "PRODUCT_BUNDLE_IDENTIFIER": f"{BUNDLE_ID}.widget",
-                "PRODUCT_NAME": "Ember note",
+                # The name of the built .appex and of its Swift module, so it
+                # must differ from the app's own ("Ember") and have no spaces
+                # in it. What a person sees is CFBundleDisplayName above.
+                "PRODUCT_NAME": WIDGET,
                 "CODE_SIGN_ENTITLEMENTS": f"{TO_ROOT}/ios/{WIDGET}/{WIDGET}.entitlements",
                 "SWIFT_VERSION": "5.0",
                 "SKIP_INSTALL": "YES",
@@ -127,7 +130,9 @@ def share_target() -> dict:
         "settings": {
             "base": {
                 "PRODUCT_BUNDLE_IDENTIFIER": f"{BUNDLE_ID}.share",
-                "PRODUCT_NAME": "Ember",
+                # Not "Ember": that is the app's PRODUCT_NAME, and two targets
+                # building Ember.swiftmodule is an error, not a warning.
+                "PRODUCT_NAME": SHARE,
                 "CODE_SIGN_ENTITLEMENTS": f"{TO_ROOT}/ios/{SHARE}/{SHARE}.entitlements",
                 "SWIFT_VERSION": "5.0",
                 "SKIP_INSTALL": "YES",
