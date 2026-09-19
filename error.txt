@@ -122,3 +122,53 @@ Fix: build through `npx tauri ios build` instead. The target is the simulator
      (--target aarch64-sim), because a simulator build is never code-signed
      and so needs no Apple account. The Rust for a real iPhone is compiled
      separately in an earlier step.
+
+---
+
+Problem: BUILDING-ON-A-MAC.md told the reader to add two calls to the
+         AppDelegate, and two Swift files existed only to be called from there.
+         There is no AppDelegate.
+Location: BUILDING-ON-A-MAC.md, ios/App/EmberLaunch.swift,
+          ios/App/EmberNotificationHandler.swift
+Action: reading cargo-mobile2's iOS templates to automate the Xcode work
+Cause: `tauri ios init` generates one entry point, Sources/<app>/main.mm, and
+       all it contains is `ffi::start_app()`. Tauri builds the UIApplication
+       and its delegate inside Rust. There is no
+       application(_:didFinishLaunchingWithOptions:) to edit, and no
+       application(_:open:options:) either. The instructions described a file
+       that does not exist.
+Fix: three separate changes.
+     - The App Group path now reaches Rust from ios/App/EmberBootstrap.mm,
+       whose +load the Objective-C runtime calls before main().
+     - The URL scheme is gone. The widget, the Control Centre button and the
+       Shortcuts action all run an App Intent, and an App Intent runs code
+       before the app opens - so it writes its own inbox line. That removed
+       CFBundleURLTypes and any need for a deep-link plugin as well.
+     - EmberNotificationHandler.swift moved to trash/ios-no-appdelegate/ with
+       a note: it cannot be installed from anywhere, and two handlers for one
+       reply would save the same note twice.
+
+---
+
+Problem: Phase B asked someone to create two targets by hand in Xcode, which
+         was the least verifiable part of the whole port.
+Location: BUILDING-ON-A-MAC.md
+Action: same investigation
+Cause: assumed `tauri ios init` writes an .xcodeproj. It doesn't - it writes
+       an XcodeGen spec, src-tauri/gen/apple/project.yml, and generates the
+       project from that.
+Fix: scripts/xcode-extensions.py patches that YAML: both app-extension
+     targets, the App Group entitlement on each, the app's own extra sources,
+     and the embedding. CI runs it and fails if either .appex is missing from
+     Ember.app/PlugIns.
+
+---
+
+Problem: the second simulator screenshot showed a launch crossfade, with two
+         status bars, rather than the app.
+Location: .github/workflows/ios.yml
+Action: reading the screenshots from the first successful simulator run
+Cause: 25 seconds was enough for the first cold launch but not for the
+       relaunch animation to settle.
+Fix: 40 seconds before the second screenshot. The check that matters is the
+     SQL query, not the picture, so this was only ever cosmetic.

@@ -14,32 +14,43 @@ written. This file says exactly how much.
 | `npm run build` (tsc + vite) | passes |
 | `npx tauri icon src-tauri/icons/icon.png` | ran; 18 iOS icons written |
 
-## Checked on a macOS runner — it compiles
+## Checked on a macOS runner — it builds, and it runs
 
-Run 35432669518, Xcode 16.4, iphoneos SDK 18.5.
+Xcode 16.4, iphoneos SDK 18.5, on an iPhone 17 Pro simulator running iOS 26.2.
 
 | Check | Result |
 |---|---|
 | Rust core for `aarch64-apple-ios` (a real iPhone) | **compiles**, `ios_extras.rs` included |
-| All five Swift files in `ios/`, typechecked at their targets' iOS versions | **pass** |
+| Every Swift and Objective-C++ file in `ios/`, at its target's iOS version | **passes** |
 | `tauri ios init` against this `tauri.conf.json` | **generates the project** |
-| The Info.plist keys applied by script | **applied**, printed in the log |
-| Full Swift compile and link, `tauri ios build --target aarch64-sim` | **builds a 7.7 MB `Ember.app`** |
+| `scripts/xcode-extensions.py` + `xcodegen` | **adds the widget and share targets** |
+| `tauri ios build --target aarch64-sim` | **builds `Ember.app`** |
+| `EmberWidget.appex` and `EmberShare.appex` inside `Ember.app/PlugIns` | **both embedded** |
+| The app launches on a simulator | **launches, no crash report** |
+| tauri-plugin-sql opens ember.db and migrates it | **all 14 migrations applied** |
+| A note written into the inbox while Ember is closed | **reaches the `captures` table on the next launch, and the inbox is emptied** |
 
-The built app is kept as a workflow artifact for 14 days.
+That last one is the whole widget / share-sheet / lock-screen-reply mechanism,
+end to end on a real iOS runtime: `inbox_drain` in Rust, the zod parse in
+TypeScript and the insert. The journal lands at
+`Library/Application Support/dev.abhij.ember.ios/ember.db`.
+
+Screenshots and the built app are kept as workflow artifacts for 14 days.
 
 ## Still not proven
 
-- **Signing and a device build.** The simulator is what makes a build with no
-  Apple account possible; a simulator build is never signed. The Swift and the
-  Rust are the same either way, and the Rust is compiled for a real iPhone
-  separately, so what's untested is the signing itself.
-- **The widget and share extensions as extensions.** Their Swift typechecks,
-  but their Xcode targets don't exist yet — they're added by hand on a Mac
-  (`BUILDING-ON-A-MAC.md`, Phase B). Nothing has built them as real extensions,
-  and the App Group has never been wired up.
-- **Everything at runtime.** The app has never been launched, on a simulator or
-  a phone. No screen, no reminder, no backup, no note has ever actually worked.
+- **Signing, and a build for a real iPhone.** A simulator build is never
+  signed, which is exactly why CI can do it with no Apple account. The Swift
+  and the Rust are the same either way, and the Rust is compiled for a device
+  separately — what is untested is the signing, and the provisioning profiles
+  the App Group needs on a device.
+- **The extensions doing their job.** They build and they are embedded, but
+  nothing has put the widget on a Home Screen, tapped the Control Centre
+  button or shared text to Ember. The App Group has never actually carried a
+  note between two processes; CI writes the inbox file itself.
+- **Everything a person would touch.** One screen has been seen, in a
+  screenshot, once. No conversation, no entry, no reminder, no backup, no
+  restore has ever run.
 
 ## Where trouble is most likely, roughly in order
 

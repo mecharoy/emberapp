@@ -102,9 +102,14 @@ jobs:
           }
           check "app target" 16.0 \
             ios/Shared/EmberInbox.swift \
-            ios/Shared/EmberIntents.swift \
-            ios/App/EmberLaunch.swift \
-            ios/App/EmberNotificationHandler.swift
+            ios/Shared/EmberIntents.swift
+          # The app's own native piece is Objective-C++, not Swift: a Tauri
+          # iOS app has no AppDelegate, so the App Group path is handed to
+          # Rust from a +load method instead (ios/App/EmberBootstrap.mm).
+          echo "::group::app target, Objective-C++ (iOS 16.0)"
+          xcrun --sdk iphoneos clang -fsyntax-only -fobjc-arc -x objective-c++ \
+            -isysroot "$SDK" -target arm64-apple-ios16.0 ios/App/EmberBootstrap.mm
+          echo "::endgroup::"
           check "EmberWidget target (widget + Control Centre)" 17.0 \
             ios/Shared/EmberInbox.swift \
             ios/Shared/EmberIntents.swift \
@@ -119,8 +124,10 @@ jobs:
       - name: Generate the Xcode project
         run: npx tauri ios init --ci --skip-targets-install
 
-      # The keys BUILDING-ON-A-MAC.md says to add by hand. Doing it here means
-      # CI builds the real thing, and keeps the instructions honest.
+      # The two keys that put "Ember backup.db" in the Files app. There is no
+      # URL scheme to declare: the widget, the Control Centre button and the
+      # Shortcuts action all run an App Intent, which writes its line to the
+      # inbox before Ember even opens.
       - name: Add the Info.plist keys Ember needs
         run: |
           set -euo pipefail
@@ -132,14 +139,26 @@ jobs:
           p "Add :UIFileSharingEnabled bool true"
           p "Delete :LSSupportsOpeningDocumentsInPlace"
           p "Add :LSSupportsOpeningDocumentsInPlace bool true"
-          # The widget, the Control Centre button and Shortcuts open ember://note.
-          p "Delete :CFBundleURLTypes"
-          p "Add :CFBundleURLTypes array"
-          p "Add :CFBundleURLTypes:0 dict"
-          p "Add :CFBundleURLTypes:0:CFBundleURLName string dev.abhij.ember.ios"
-          p "Add :CFBundleURLTypes:0:CFBundleURLSchemes array"
-          p "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string ember"
           /usr/libexec/PlistBuddy -c "Print" "$PLIST"
+
+      # ---- 3b. The widget and the share sheet, as real targets ----
+      #
+      # `tauri ios init` doesn't hand-write an .xcodeproj: it writes an
+      # XcodeGen spec, project.yml, and generates the project from that. So
+      # everything that used to need someone clicking around in Xcode - two
+      # app-extension targets, an App Group on each, and embedding them in the
+      # app - is a patch to that YAML. Which means a build server can do it,
+      # and can check that it worked.
+      - name: Add the widget and share-sheet targets
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          python3 -m pip install --quiet --break-system-packages pyyaml             || python3 -m pip install --quiet pyyaml
+          python3 scripts/xcode-extensions.py
+          echo "::group::project.yml"
+          cat src-tauri/gen/apple/project.yml
+          echo "::endgroup::"
+          cd src-tauri/gen/apple && xcodegen generate --spec project.yml
 
       # ---- 4. Swift, the Rust static library, and linking ----
       #
@@ -156,13 +175,21 @@ jobs:
       - name: Build for the iOS Simulator (no signing needed)
         run: npx tauri ios build --ci --verbose --target aarch64-sim
 
-      - name: Find the built app
+      - name: Find the built app, and check the extensions are inside it
         run: |
           set -euo pipefail
           APP="$(find src-tauri/gen/apple -name '*.app' -type d | grep -i sim | head -1)"
           if [ -z "$APP" ]; then APP="$(find src-tauri/gen/apple -name '*.app' -type d | head -1)"; fi
           echo "App: $APP"
           test -n "$APP"
+          echo "::group::what is in the app bundle"
+          ls -la "$APP"
+          ls -la "$APP/PlugIns" 2>/dev/null || echo "(no PlugIns folder)"
+          echo "::endgroup::"
+          # An extension that didn't get embedded is one that will never show
+          # up on the Home Screen or in the share sheet.
+          test -d "$APP/PlugIns/EmberWidget.appex"
+          test -d "$APP/PlugIns/EmberShare.appex"
           echo "APP=$APP" >> "$GITHUB_ENV"
           echo "BUNDLE_ID=dev.abhij.ember.ios" >> "$GITHUB_ENV"
 
@@ -255,7 +282,9 @@ jobs:
           done
 
           xcrun simctl launch "$UDID" "$BUNDLE_ID"
-          sleep 25
+          # Longer than the first launch: the screenshot is taken after the
+          # launch crossfade has finished, not during it.
+          sleep 40
           xcrun simctl io "$UDID" screenshot shots/02-after-inbox.png
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
 

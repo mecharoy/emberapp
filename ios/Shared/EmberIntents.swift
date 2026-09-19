@@ -5,12 +5,16 @@
 //   - "Save a note in Ember" takes the words and writes them straight to the
 //     shared inbox, without opening anything. Good for "Hey Siri, save a note
 //     in Ember", for a Home Screen shortcut, and for automations.
-//   - "Open an Ember note" opens the app with the note sheet ready. This is
-//     what the Control Centre button and the widget do.
+//   - "Open an Ember note" leaves a line in the inbox saying "open the note
+//     sheet", then opens Ember, which reads the inbox as soon as it is on
+//     screen. This is what the widget and the Control Centre button run.
 //
-// Add this file to the app target and to EmberWidget (the Control Centre
-// button needs OpenEmberNoteIntent in its own target). EmberInbox.swift goes
-// in both too.
+// Doing it with an intent rather than a URL matters: an intent runs code
+// before the app opens, so the inbox is the only way a note ever travels, and
+// Ember needs no URL scheme and nowhere to handle one - which is just as well,
+// because a Tauri iOS app has no AppDelegate to handle it in.
+//
+// Added to the app target and to EmberWidget by scripts/xcode-extensions.py.
 
 import AppIntents
 

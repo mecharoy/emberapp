@@ -49,51 +49,94 @@ npx tauri ios build        # a release .ipa
 
 ### Info.plist
 
-`tauri ios init` writes `src-tauri/gen/apple/ember_ios_iOS/Info.plist`. Add
-these keys. (Each one is needed by something in this repo; nothing else is.)
+`tauri ios init` writes `src-tauri/gen/apple/ember-ios_iOS/Info.plist`. Two
+keys are needed, both so backups show up in the Files app:
 
 ```xml
-<!-- Backups: "Ember backup.db" shows up in Files > On My iPhone > Ember. -->
 <key>UIFileSharingEnabled</key>
 <true/>
 <key>LSSupportsOpeningDocumentsInPlace</key>
 <true/>
-
-<!-- The widget, the Control Centre button and Shortcuts open ember://note. -->
-<key>CFBundleURLTypes</key>
-<array>
-  <dict>
-    <key>CFBundleURLName</key>
-    <string>dev.abhij.ember.ios</string>
-    <key>CFBundleURLSchemes</key>
-    <array><string>ember</string></array>
-  </dict>
-</array>
 ```
 
 There is deliberately **no** `NSLocalNetworkUsageDescription` and **no** ATS
 exception: this edition makes no home-network calls at all (see "The computer
-link" below).
+link" below). There is no `CFBundleURLTypes` either — nothing opens Ember by
+URL; see below.
 
-### The two calls in AppDelegate
+### There is no AppDelegate
 
-Open `src-tauri/gen/apple/ember_ios_iOS/` and add the three Swift files from
-`ios/App/` and `ios/Shared/` to the app target (drag them in, tick
-"ember_ios_iOS"). Then, in the generated `main.swift` / `AppDelegate`:
+Worth knowing before you go looking for one. `tauri ios init` generates a
+single entry point:
 
-```swift
-// BEFORE ember_ios_lib's entry point runs:
-EmberLaunch.pointRustAtSharedInbox()
-
-// AFTER it has started (in applicationDidBecomeActive, say):
-EmberLaunch.takeOverNotifications()
-
-// And in application(_:open:options:):
-if EmberLaunch.handle(url: url) { return true }
+```objc
+// src-tauri/gen/apple/Sources/ember-ios/main.mm
+int main(int argc, char * argv[]) { ffi::start_app(); return 0; }
 ```
 
-Phase A works without the first and third — day reminders answered on the lock
-screen are the only thing that needs them, and only when Ember is closed.
+Tauri builds the UIApplication and its delegate from inside Rust. There is no
+`application(_:didFinishLaunchingWithOptions:)` to add a line to, and no
+`application(_:open:options:)` either. Two consequences shape the whole port:
+
+1. **Nothing opens Ember by URL.** The widget, the Control Centre button and
+   the Shortcuts action all run an App Intent instead, and an App Intent runs
+   code *before* the app comes forward — so it writes its line to the shared
+   inbox itself. One mechanism carries every note from everywhere, and no URL
+   scheme is needed.
+2. **The App Group path reaches Rust through `+load`.** The Objective-C
+   runtime calls `+load` when the image is loaded, before `main()`, which is
+   early enough. That is all `ios/App/EmberBootstrap.mm` does.
+
+## Phase B — the widget, the Control Centre button and the share sheet
+
+These are **app extensions**: separate programs with their own targets. This
+used to be a list of things to click in Xcode. It isn't any more.
+
+`tauri ios init` doesn't hand-write an `.xcodeproj` — it writes an XcodeGen
+spec, `src-tauri/gen/apple/project.yml`, and generates the project from it. So
+one script adds the targets, the App Group and the embedding:
+
+```sh
+brew install xcodegen
+pip3 install pyyaml
+
+npx tauri ios init                       # writes project.yml
+python3 scripts/xcode-extensions.py      # adds the two targets to it
+cd src-tauri/gen/apple && xcodegen generate --spec project.yml && cd -
+
+npx tauri ios build                      # or `dev`
+```
+
+That gives you `EmberWidget` (the Home Screen widget and the Control Centre
+button, iOS 17+) and `EmberShare` (the share sheet), both carrying the App
+Group `group.dev.abhij.ember.ios`, both embedded in `Ember.app/PlugIns`. CI
+does exactly this and fails if either `.appex` is missing from the bundle.
+
+To change the App Group name, change it in `scripts/xcode-extensions.py` and
+in `EmberInbox.appGroup` in `ios/Shared/EmberInbox.swift` — they must match.
+
+Run the script with `--no-extensions` to build the app on its own.
+
+### Signing the extensions
+
+An App Group needs a provisioning profile that grants it, so for a **device**
+build each of the three bundle ids needs one in your Apple Developer account:
+
+```
+dev.abhij.ember.ios
+dev.abhij.ember.ios.widget
+dev.abhij.ember.ios.share
+```
+
+Simulator builds need none of this, which is why CI can check the whole thing
+without an Apple account. Without the App Group the app still runs: notes
+written inside Ember work as normal, and notes from an extension simply never
+arrive.
+
+### Shortcuts and Siri
+
+Nothing extra to do: `ios/Shared/EmberIntents.swift` is in the app target, so
+both actions appear in Shortcuts the first time Ember runs.
 
 ### If the keyboard doesn't rise with the quick-note sheet
 
@@ -108,79 +151,12 @@ webView.configuration.setValue(false, forKey: "keyboardDisplayRequiresUserAction
 
 ---
 
-## Phase B — the widget, the Control Centre button and the share sheet
-
-These are **app extensions**: separate programs with their own targets. Xcode
-has to create the targets; the Swift inside them is written and waiting in
-`ios/`.
-
-### 1. The App Group
-
-All three, plus the app, share one folder. In Xcode, for **each** of the three
-targets: Signing & Capabilities → + Capability → App Groups → add
-
-```
-group.dev.abhij.ember.ios
-```
-
-If you change that name, change `EmberInbox.appGroup` in
-`ios/Shared/EmberInbox.swift` to match.
-
-Without the App Group nothing breaks — notes just stay in the extension and
-never reach the journal — so get this right before testing.
-
-### 2. EmberWidget (widget + Control Centre button)
-
-File → New → Target → **Widget Extension**, named `EmberWidget`. Untick
-"Include Configuration Intent". Then:
-
-- Delete the sample Swift file Xcode generates.
-- Add `ios/EmberWidget/EmberWidget.swift`, `ios/Shared/EmberInbox.swift` and
-  `ios/Shared/EmberIntents.swift` to the target.
-- Deployment target: **iOS 17.0** — not 16, like the app. From iOS 17 a widget
-  must declare its own background, and `containerBackground` doesn't exist
-  before that. (CI caught this.) The Control Centre button needs iOS 18 and
-  switches itself off below that.
-
-### 3. EmberShare (share sheet)
-
-File → New → Target → **Share Extension**, named `EmberShare`. Then:
-
-- Delete the generated `ShareViewController.swift` **and** `MainInterface.storyboard`.
-- Add `ios/EmberShare/ShareViewController.swift` and `ios/Shared/EmberInbox.swift`.
-- In `EmberShare/Info.plist`, replace `NSExtensionMainStoryboard` with:
-
-```xml
-<key>NSExtensionPrincipalClass</key>
-<string>$(PRODUCT_MODULE_NAME).ShareViewController</string>
-```
-
-and set what it accepts:
-
-```xml
-<key>NSExtensionAttributes</key>
-<dict>
-  <key>NSExtensionActivationRule</key>
-  <dict>
-    <key>NSExtensionActivationSupportsText</key>
-    <true/>
-    <key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
-    <integer>1</integer>
-  </dict>
-</dict>
-```
-
-### 4. Shortcuts and Siri
-
-Nothing to add: `ios/Shared/EmberIntents.swift` in the app target is enough.
-Both actions appear in Shortcuts the first time the app is run.
-
----
-
 ## Checking it by hand
 
-None of this can be tested from Windows. Walk through it on a real phone —
-a simulator can't do notifications with text replies properly.
+CI already does a fair amount of this: it boots a simulator, launches Ember,
+checks it didn't crash and that all fourteen migrations ran, then writes a line
+into the inbox by hand and confirms the note reaches the journal. What follows
+is what a machine can't check.
 
 **Phase A**
 
@@ -206,7 +182,8 @@ a simulator can't do notifications with text replies properly.
 - [ ] Turn off the reminders: no more arrive.
 - [ ] The evening reminder still arrives at its time.
 
-**Phase B**
+**Phase B** — all of this needs the App Group to be working, so do the first
+one first.
 
 - [ ] The Ember widget can be added to the Home Screen and opens the note sheet.
 - [ ] Control Centre (iOS 18+) offers an "Ember note" button that does the same.

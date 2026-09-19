@@ -1,10 +1,15 @@
 // The Home Screen widget and the Control Centre button.
 //
-// Neither can hold a text field, and neither can reach ember.db, so both do
-// the same thing: open Ember at `ember://note`, which opens the quick-note
-// sheet with the keyboard already up (EmberLaunch.swift -> src/inbox.ts ->
-// src/App.tsx). This is the closest iPhone gets to Android's notification
-// drawer note and Quick Settings tile.
+// Neither can hold a text field, and neither can reach ember.db, so both run
+// the same App Intent: it leaves a line in the shared inbox saying "open the
+// note sheet", then opens Ember, which reads the inbox the moment it is on
+// screen (ios/Shared/EmberIntents.swift -> src/inbox.ts -> src/App.tsx). This
+// is the closest iPhone gets to Android's notification drawer note and Quick
+// Settings tile.
+//
+// An intent rather than a URL on purpose: an intent runs code before the app
+// opens, so one mechanism - the inbox - carries every note from everywhere,
+// and Ember needs no URL scheme and no way to handle one.
 //
 // Add this file to the EmberWidget target only. EmberInbox.swift goes in that
 // target too. That target's deployment target is iOS 17.0: from iOS 17 a
@@ -18,8 +23,6 @@ private let paper = Color(red: 0.965, green: 0.945, blue: 0.906)  // #F6F1E7
 private let ink = Color(red: 0.157, green: 0.137, blue: 0.118)    // #28231E
 private let inkFaint = Color(red: 0.463, green: 0.424, blue: 0.376) // #766C60
 private let ember = Color(red: 0.702, green: 0.267, blue: 0.102)  // #B3441A
-
-private let noteURL = URL(string: "ember://note")!
 
 // ---------- Home Screen widget ----------
 
@@ -46,23 +49,27 @@ struct EmberWidgetView: View {
   @Environment(\.widgetFamily) private var family
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Text("Ember")
-        .font(.system(size: 13, weight: .semibold, design: .serif))
-        .foregroundStyle(ember)
-      Text(family == .systemSmall ? "A quick note" : "Something happened? Jot it down.")
-        .font(.system(size: family == .systemSmall ? 17 : 19, design: .serif))
-        .foregroundStyle(ink)
-        .lineLimit(2)
-        .minimumScaleFactor(0.8)
-      Spacer(minLength: 0)
-      Text("Tap to write")
-        .font(.system(size: 12))
-        .foregroundStyle(inkFaint)
+    // The whole widget is the button: a tap runs the intent, which leaves the
+    // note in the inbox and brings Ember forward.
+    Button(intent: OpenEmberNoteIntent()) {
+      VStack(alignment: .leading, spacing: 4) {
+        Text("Ember")
+          .font(.system(size: 13, weight: .semibold, design: .serif))
+          .foregroundStyle(ember)
+        Text(family == .systemSmall ? "A quick note" : "Something happened? Jot it down.")
+          .font(.system(size: family == .systemSmall ? 17 : 19, design: .serif))
+          .foregroundStyle(ink)
+          .lineLimit(2)
+          .minimumScaleFactor(0.8)
+        Spacer(minLength: 0)
+        Text("Tap to write")
+          .font(.system(size: 12))
+          .foregroundStyle(inkFaint)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .buttonStyle(.plain)
     .containerBackground(paper, for: .widget)
-    .widgetURL(noteURL)
   }
 }
 
