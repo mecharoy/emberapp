@@ -182,8 +182,15 @@ is what a machine can't check.
 - [ ] Turn off the reminders: no more arrive.
 - [ ] The evening reminder still arrives at its time.
 
-**Phase B** — all of this needs the App Group to be working, so do the first
-one first.
+**Phase B** — all of this needs the App Group, which is the one part of the
+port CI cannot check: a simulator grants no App Group without a provisioning
+profile, so on a build server Ember always falls back to its own folder. On a
+device it shouldn't. Check it first, because everything else here depends on
+it:
+
+- [ ] Share some text to Ember, then open Ember. If the note is there, the App
+      Group works and the rest of this list is worth doing. If it isn't, fix
+      the provisioning profiles (see "Signing the extensions") before going on.
 
 - [ ] The Ember widget can be added to the Home Screen and opens the note sheet.
 - [ ] Control Centre (iOS 18+) offers an "Ember note" button that does the same.

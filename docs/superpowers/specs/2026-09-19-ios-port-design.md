@@ -39,7 +39,7 @@ tauri-plugin-sql's path and complicate `VACUUM INTO`, restore, and migrations),
 
 | Route | Surfaces | Mechanism |
 |---|---|---|
-| Open the app | widget tap, Control Center control, Shortcuts/Siri | `ember://note[?text=…]` URL → app opens the quick-note sheet |
+| Open the app | widget tap, Control Center control, Shortcuts/Siri | an App Intent writes an `open` line, then opens the app (superseded the original `ember://note` URL plan — a Tauri iOS app has no AppDelegate to handle a URL in) |
 | Inbox file | share sheet, notification text reply | one JSON object per line appended to `inbox.jsonl` in the App Group container |
 
 The app drains the inbox on launch and on every resume: Rust command

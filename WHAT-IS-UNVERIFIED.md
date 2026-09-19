@@ -29,6 +29,7 @@ Xcode 16.4, iphoneos SDK 18.5, on an iPhone 17 Pro simulator running iOS 26.2.
 | The app launches on a simulator | **launches, no crash report** |
 | tauri-plugin-sql opens ember.db and migrates it | **all 14 migrations applied** |
 | A note written into the inbox while Ember is closed | **reaches the `captures` table on the next launch, and the inbox is emptied** |
+| The same, through the App Group folder | **not proven** — the simulator grants no App Group without a provisioning profile; CI says so each run rather than guessing |
 
 That last one is the whole widget / share-sheet / lock-screen-reply mechanism,
 end to end on a real iOS runtime: `inbox_drain` in Rust, the zod parse in
@@ -54,27 +55,36 @@ Screenshots and the built app are kept as workflow artifacts for 14 days.
 
 ## Where trouble is most likely, roughly in order
 
-1. **The widget and share targets** (`BUILDING-ON-A-MAC.md`, Phase B). Xcode
-   has to create the targets by hand and the App Group has to match on all
-   four. This is the least certain part of the whole port.
+1. **A day reminder answered while Ember is closed.** The reminders are
+   scheduled in TypeScript and a reply is handled by
+   tauri-plugin-notification's own `onAction`, which `src/dayReminders.ts`
+   listens to. Whether iOS delivers that to a webview that isn't running yet is
+   the open question. There is no second handler to fall back on: a Tauri iOS
+   app has no AppDelegate to install one from, and the one that was written for
+   the job is in `trash/ios-no-appdelegate/` with an explanation. If cold-start
+   replies turn out to be lost, the fix is a proper Tauri iOS plugin.
 2. **`exclude_from_backup` in `src-tauri/src/ios_extras.rs`.** It sets the
    `com.apple.MobileBackup` extended attribute with `libc::setxattr`, which is
-   what `NSURLIsExcludedFromBackupKey` does underneath, rather than calling
-   Foundation — that would have meant a new dependency. It compiles (CI builds
-   it for a real iPhone), but compiling proves only that it is called, not that
-   Apple honours it. If the "Welcome back" screen fails to appear after restoring a phone
-   from an iCloud backup (the manual check in `BUILDING-ON-A-MAC.md`), this is
-   why, and the fix is to call the Foundation API from `EmberLaunch.swift`
-   instead.
-3. **Day reminders with a text field.** `registerActionTypes({ input: true })`
-   is documented as supported on mobile by tauri-plugin-notification v2, but
-   the exact shape of what `onAction` hands back on iOS is read defensively in
-   `handleDayReminderAction` and may need adjusting against the real payload.
-4. **The two places a reply can be handled.** While Ember is on screen the
-   plugin's own `onAction` saves it; while it isn't,
-   `EmberNotificationHandler.swift` writes it to the inbox instead. They tell
-   the two cases apart by `UIApplication.shared.applicationState`. If a reply
-   ever shows up twice in a check-in, that test is the thing to look at.
+   what `NSURLIsExcludedFromBackupKey` does underneath, rather than taking on a
+   Foundation binding. It compiles, and CI builds it for a real iPhone, but
+   compiling proves only that it is called — not that Apple honours it. If the
+   "Welcome back" screen fails to appear after restoring a phone from an iCloud
+   backup (the manual check in `BUILDING-ON-A-MAC.md`), this is why, and the
+   fix is to call the Foundation API from `ios/App/EmberBootstrap.mm`, which is
+   already Objective-C++ and already runs early enough.
+3. **The shape of what `onAction` hands back on iOS.**
+   `registerActionTypes({ input: true })` is documented as supported on mobile,
+   but `handleDayReminderAction` reads the payload defensively and may need
+   adjusting against the real thing.
+4. **The App Group, and so the extensions doing their job.** They build, they
+   carry the entitlement, and they are embedded in `Ember.app/PlugIns`. But an
+   App Group is granted by a provisioning profile, and an unsigned simulator
+   build has none — CI reports, every run, that the simulator creates no
+   container for `group.dev.abhij.ember.ios`. So the folder that carries a note
+   from an extension to the app has never actually carried one; Ember fell back
+   to its own folder in every test, which is exactly why they passed. On a
+   device with a profile that grants the group this should work, and it is the
+   first thing on the by-hand checklist.
 5. **The keyboard under the quick-note sheet.** `BUILDING-ON-A-MAC.md` has the
    one-line native fix if it doesn't rise on its own.
 

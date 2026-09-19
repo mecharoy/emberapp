@@ -172,3 +172,19 @@ Cause: 25 seconds was enough for the first cold launch but not for the
        relaunch animation to settle.
 Fix: 40 seconds before the second screenshot. The check that matters is the
      SQL query, not the picture, so this was only ever cosmetic.
+
+---
+
+Problem: `xcrun simctl get_app_container <udid> <id> group.dev.abhij.ember.ios`
+         printed its usage text and exited 117, failing the build.
+Location: .github/workflows/ios.yml
+Action: testing that a note left in the App Group folder reaches the journal
+Cause: not a bug in the port. An App Group is granted by a provisioning
+       profile, and an unsigned simulator build has none, so the simulator
+       never creates a container for it. Ember's fallback - its own folder -
+       is what every earlier test actually exercised, which is why they passed.
+Fix: the step now looks first, reports "NOT PROVEN" with the reason, and
+     exits 0. It runs the real test only when a container exists, which will
+     be on a device with a profile that grants the group. Written down in
+     WHAT-IS-UNVERIFIED.md and first on the by-hand checklist rather than
+     quietly assumed.
