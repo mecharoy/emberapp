@@ -153,8 +153,11 @@ jobs:
           PROJECT="$(find src-tauri/gen/apple -maxdepth 1 -name '*.xcodeproj' | head -1)"
           xcodebuild -list -project "$PROJECT"
           xcodebuild -list -project "$PROJECT" -json > build-list.json
+          cat build-list.json
           SCHEME="$(python3 -c "import json;print(json.load(open('build-list.json'))['project']['schemes'][0])")"
-          CONFIG="$(python3 -c "import json;c=json.load(open('build-list.json'))['project']['buildConfigurations'];print(next((x for x in c if x.lower()=='release'), c[-1]))")"
+          # Xcode has called this key different things; find whichever list
+          # holds the configurations rather than depending on its name.
+          CONFIG="$(python3 -c "import json;p=json.load(open('build-list.json'))['project'];c=next((v for k,v in p.items() if 'config' in k.lower() and isinstance(v,list) and v),[]);print(next((x for x in c if x.lower()=='release'), c[-1] if c else 'release'))")"
           echo "Project: $PROJECT"
           echo "Scheme: $SCHEME"
           echo "Configuration: $CONFIG"
