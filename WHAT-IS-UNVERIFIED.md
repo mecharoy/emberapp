@@ -1,32 +1,45 @@
 # What was checked, and what wasn't
 
-This port was written on Windows. iOS builds only on macOS, so a large part of
-it has never been compiled, let alone run. This file says exactly which part,
-so nobody has to guess.
+This port was written on Windows, where iOS code can't be built. A GitHub
+Actions macOS runner now does that on every push to the `ios` branch
+(`.github/workflows/ios.yml`), so more of it is proven than when it was
+written. This file says exactly how much.
 
-## Checked, on Windows
+## Checked on Windows
 
 | Check | Result |
 |---|---|
 | `npm run typecheck` (`tsc --noEmit`) | passes |
 | `npx vitest run` | 370 tests pass, 37 files |
-| `npm run build` (tsc + vite) | passes; web bundle written to `dist/` |
+| `npm run build` (tsc + vite) | passes |
 | `npx tauri icon src-tauri/icons/icon.png` | ran; 18 iOS icons written |
-| JSON configs parse (`tauri.conf.json`, `capabilities/default.json`) | valid |
 
-The new pure logic has tests of its own: `src/dayReminders.test.ts` (which of
-the three reminders ring on which days, the notification ids they use) and
-`src/inbox.test.ts` (reading the lines the widget and the share sheet write).
+## Checked on a macOS runner — it compiles
 
-## Not checked — nothing here has been compiled
+Run 35432669518, Xcode 16.4, iphoneos SDK 18.5.
 
-- **All Rust.** `cargo check --target aarch64-apple-ios` needs the iOS SDK,
-  which only exists on a Mac. `src-tauri/src/ios_extras.rs` is new and entirely
-  unbuilt.
-- **All Swift.** Five files in `ios/`. Never compiled, never run.
-- **The Xcode project.** `src-tauri/gen/apple/` does not exist; `tauri ios init`
-  makes it on the Mac.
-- **Anything visual.** Safe areas, the keyboard, the sheet, the tab bar.
+| Check | Result |
+|---|---|
+| Rust core for `aarch64-apple-ios` (a real iPhone) | **compiles**, `ios_extras.rs` included |
+| All five Swift files in `ios/`, typechecked at their targets' iOS versions | **pass** |
+| `tauri ios init` against this `tauri.conf.json` | **generates the project** |
+| The Info.plist keys applied by script | **applied**, printed in the log |
+| Full Swift compile and link, `tauri ios build --target aarch64-sim` | **builds a 7.7 MB `Ember.app`** |
+
+The built app is kept as a workflow artifact for 14 days.
+
+## Still not proven
+
+- **Signing and a device build.** The simulator is what makes a build with no
+  Apple account possible; a simulator build is never signed. The Swift and the
+  Rust are the same either way, and the Rust is compiled for a real iPhone
+  separately, so what's untested is the signing itself.
+- **The widget and share extensions as extensions.** Their Swift typechecks,
+  but their Xcode targets don't exist yet — they're added by hand on a Mac
+  (`BUILDING-ON-A-MAC.md`, Phase B). Nothing has built them as real extensions,
+  and the App Group has never been wired up.
+- **Everything at runtime.** The app has never been launched, on a simulator or
+  a phone. No screen, no reminder, no backup, no note has ever actually worked.
 
 ## Where trouble is most likely, roughly in order
 
@@ -36,8 +49,9 @@ the three reminders ring on which days, the notification ids they use) and
 2. **`exclude_from_backup` in `src-tauri/src/ios_extras.rs`.** It sets the
    `com.apple.MobileBackup` extended attribute with `libc::setxattr`, which is
    what `NSURLIsExcludedFromBackupKey` does underneath, rather than calling
-   Foundation — that would have meant a new dependency I couldn't compile to
-   check. If the "Welcome back" screen fails to appear after restoring a phone
+   Foundation — that would have meant a new dependency. It compiles (CI builds
+   it for a real iPhone), but compiling proves only that it is called, not that
+   Apple honours it. If the "Welcome back" screen fails to appear after restoring a phone
    from an iCloud backup (the manual check in `BUILDING-ON-A-MAC.md`), this is
    why, and the fix is to call the Foundation API from `EmberLaunch.swift`
    instead.

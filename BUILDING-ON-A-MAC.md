@@ -1,11 +1,12 @@
 # Building Ember for iPhone
 
-This folder holds a complete iOS edition of Ember, written on Windows. iOS apps
-can only be compiled and signed on a Mac with Xcode, so **nothing here has been
-built or run.** What follows is every remaining step.
+This folder holds a complete iOS edition of Ember, written on Windows. A GitHub
+Actions macOS runner builds it on every push to the `ios` branch, so it is
+known to compile — but **nothing here has ever been run, and nothing is
+signed.** What follows is every remaining step.
 
-Read `WHAT-IS-UNVERIFIED.md` first if you want to know what is likely to need
-fixing.
+Read `WHAT-IS-UNVERIFIED.md` first if you want to know what is proven and what
+is likely to need fixing.
 
 ---
 

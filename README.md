@@ -12,14 +12,19 @@ This is the iPhone edition, copied from the Android one on 2026-09-19. The
 Android and Windows versions live alongside it in `ember-mobile` and
 `ember-desktop`.
 
-## Not built yet
+## It compiles; it has never been run
 
-**Nothing in this folder has been compiled.** It was written on Windows, and
-iOS apps can only be built and signed on a Mac with Xcode.
+Written on Windows, where iOS code can't be built. A GitHub Actions macOS
+runner now builds it on every push to the `ios` branch, so the Rust, the Swift
+and the Xcode project are all known to compile — and the run leaves a real
+`Ember.app` behind as an artifact.
+
+Nothing has ever been *launched*, on a phone or a simulator, and nothing has
+been signed. Everything you can see or touch is still unverified.
 
 - `BUILDING-ON-A-MAC.md` — every remaining step, plus a by-hand test checklist.
-- `WHAT-IS-UNVERIFIED.md` — what was actually checked, and where trouble is
-  most likely.
+- `WHAT-IS-UNVERIFIED.md` — exactly what is proven and what isn't.
+- `.github/workflows/ios.yml` — the build.
 
 ## AI
 

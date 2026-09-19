@@ -7,9 +7,16 @@ counselor-style AI conversation in the evening, and the AI writes the journal
 entry and tracks patterns over time. The full product spec is in `DESIGN.md` —
 read it before any feature work.
 
-**This folder has never been compiled.** iOS builds only on macOS.
-`BUILDING-ON-A-MAC.md` has every remaining step; `WHAT-IS-UNVERIFIED.md` says
-what was checked and what wasn't. Don't claim any Rust or Swift here works.
+**It compiles; it has never been run.** iOS builds only on macOS, so a GitHub
+Actions macOS runner does it on every push to the `ios` branch
+(`.github/workflows/ios.yml`): the Rust for a real iPhone, every Swift file in
+`ios/`, `tauri ios init`, and a full simulator build. Push there before
+claiming any Rust or Swift change works.
+
+Nothing has ever been launched, on a phone or a simulator, and nothing is
+signed. Never say an iOS *behaviour* works — compiling isn't running.
+`BUILDING-ON-A-MAC.md` has the remaining steps and the by-hand checklist;
+`WHAT-IS-UNVERIFIED.md` says exactly what is proven.
 
 ## Stack
 
