@@ -90,23 +90,26 @@ jobs:
         run: |
           set -euo pipefail
           SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+          # Each group is checked at the deployment target its real Xcode
+          # target will have: EmberWidget is iOS 17, because from iOS 17 a
+          # widget has to declare its own background.
           check() {
-            local name="$1"; shift
-            echo "::group::$name"
+            local name="$1"; local min="$2"; shift 2
+            echo "::group::$name (iOS $min)"
             xcrun --sdk iphoneos swiftc -typecheck -parse-as-library \
-              -sdk "$SDK" -target arm64-apple-ios16.0 "$@"
+              -sdk "$SDK" -target "arm64-apple-ios$min" "$@"
             echo "::endgroup::"
           }
-          check "app target" \
+          check "app target" 16.0 \
             ios/Shared/EmberInbox.swift \
             ios/Shared/EmberIntents.swift \
             ios/App/EmberLaunch.swift \
             ios/App/EmberNotificationHandler.swift
-          check "EmberWidget target (widget + Control Centre)" \
+          check "EmberWidget target (widget + Control Centre)" 17.0 \
             ios/Shared/EmberInbox.swift \
             ios/Shared/EmberIntents.swift \
             ios/EmberWidget/EmberWidget.swift
-          check "EmberShare target (share sheet)" \
+          check "EmberShare target (share sheet)" 16.0 \
             ios/Shared/EmberInbox.swift \
             ios/EmberShare/ShareViewController.swift
 

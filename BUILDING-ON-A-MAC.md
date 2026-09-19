@@ -136,7 +136,9 @@ File → New → Target → **Widget Extension**, named `EmberWidget`. Untick
 - Delete the sample Swift file Xcode generates.
 - Add `ios/EmberWidget/EmberWidget.swift`, `ios/Shared/EmberInbox.swift` and
   `ios/Shared/EmberIntents.swift` to the target.
-- Deployment target: iOS 16.0. The Control Centre button needs iOS 18 and
+- Deployment target: **iOS 17.0** — not 16, like the app. From iOS 17 a widget
+  must declare its own background, and `containerBackground` doesn't exist
+  before that. (CI caught this.) The Control Centre button needs iOS 18 and
   switches itself off below that.
 
 ### 3. EmberShare (share sheet)

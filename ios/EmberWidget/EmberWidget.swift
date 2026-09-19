@@ -7,7 +7,9 @@
 // drawer note and Quick Settings tile.
 //
 // Add this file to the EmberWidget target only. EmberInbox.swift goes in that
-// target too.
+// target too. That target's deployment target is iOS 17.0: from iOS 17 a
+// widget must declare its own background with containerBackground, which
+// doesn't exist before that.
 
 import SwiftUI
 import WidgetKit
@@ -39,6 +41,7 @@ struct EmberProvider: TimelineProvider {
   }
 }
 
+@available(iOS 17.0, *)
 struct EmberWidgetView: View {
   @Environment(\.widgetFamily) private var family
 
@@ -63,6 +66,7 @@ struct EmberWidgetView: View {
   }
 }
 
+@available(iOS 17.0, *)
 struct EmberWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "dev.abhij.ember.ios.note", provider: EmberProvider()) { _ in
@@ -77,7 +81,7 @@ struct EmberWidget: Widget {
 // ---------- Control Centre button (iOS 18 and newer) ----------
 //
 // The nearest thing iPhone has to Android's Quick Settings tile. It lives in
-// this same target; on iOS 17 it simply isn't offered.
+// this same target; below iOS 18 it simply isn't offered.
 
 @available(iOS 18.0, *)
 struct EmberNoteControl: ControlWidget {
@@ -95,6 +99,7 @@ struct EmberNoteControl: ControlWidget {
 // ---------- the bundle ----------
 
 @main
+@available(iOS 17.0, *)
 struct EmberWidgetBundle: WidgetBundle {
   var body: some Widget {
     EmberWidget()
