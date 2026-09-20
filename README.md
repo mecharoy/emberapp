@@ -1,6 +1,6 @@
 # Ember
 
-A journal that writes itself. Android and Windows.
+A journal that writes itself. Android and Windows, with a Linux edition in its own repo.
 
 Jot quick notes during the day (from the app, the notification drawer or a Quick Settings tile). In the evening Ember asks you a few questions about your day, then writes the entry for you on a handwritten page. Over time it picks up your moods, habits, sleep and the people and themes that keep coming up.
 
@@ -14,6 +14,10 @@ Grab the latest release for your platform from [Releases](https://github.com/mec
 - **Windows**: the `.exe` installer. It's unsigned, so Windows SmartScreen may warn you the first time — "More info" → "Run anyway".
 
 Both apps check this repo for new versions and tell you when one is out.
+
+**Linux** has its own repo: [ember-desktop-linux](https://github.com/mecharoy/ember-desktop-linux/releases).
+
+**iPhone:** there is no iPhone app. Apple only lets an app run on other people's phones through a paid developer account ($99 a year), and Ember is free, so I am not publishing one. The unfinished, never-run iPhone code is on the [`ios` branch](https://github.com/mecharoy/emberapp/tree/ios) if you want to build and sign it yourself.
 
 ## AI
 
