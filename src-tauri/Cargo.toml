@@ -1,6 +1,6 @@
 [package]
 name = "ember-ios"
-version = "1.5.2"
+version = "1.5.3"
 description = "Ember for iPhone - a journal that writes itself"
 authors = ["Ember"]
 edition = "2021"

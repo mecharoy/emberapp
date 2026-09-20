@@ -42,6 +42,8 @@ On iPhone, any of:
 The Android edition can also borrow the AI of a paired Windows computer over
 the same Wi-Fi. That is not offered here.
 
+Every model gets the same features, including the checklist Ember drafts before a conversation; free and local models work as well as the paid ones.
+
 Your key stays in the app's private storage, marked so that it never reaches
 iCloud. Your journal is a SQLite database on your phone — no account, no sync.
 What you write in the conversation goes to the provider you picked. Export

@@ -52,6 +52,10 @@ signed. Never say an iOS *behaviour* works — compiling isn't running.
   Insights in smaller steps (`prompts/extractorCompact.ts`, `compactDays.ts`, counted links in `insights/links.ts`).
   All prompts, filled in, are in `../prompt-review/PROMPTS.md` (regenerate: EMBER_PROMPT_REVIEW=1 npx vitest run
   src/ai/prompts/promptReview.test.ts, desktop).
+- Checklist on every provider (fixed 2026-09-20): small models bend the JSON, so `parseChecklist` (ai/agenda.ts) drops bad items and
+  trims instead of rejecting the reply, and `extractJson` finds the object inside chatter. `callEndpoint` (providers/openaiCompatible.ts)
+  refuses a free-tier job only when the per-minute allowance cuts its reply below min(wanted, 1200); a short job (checklist 600-700,
+  chat summary 300) is sent as asked. Tests: providers/jobRoom.test.ts, ai/agenda.test.ts. Same files in all four apps.
 
 ## Commands
 
