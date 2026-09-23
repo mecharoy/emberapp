@@ -1,8 +1,13 @@
-# Ember
+# Elytra
 
-A journal that writes itself. Android and Windows, with a Linux edition in its own repo.
+Write it down. Let it open.
 
-Jot quick notes during the day (from the app, the notification drawer or a Quick Settings tile). In the evening Ember asks you a few questions about your day, then writes the entry for you on a handwritten page. Over time it picks up your moods, habits, sleep and the people and themes that keep coming up.
+A journal you talk to. Android and Windows, with a Linux edition in its own repo.
+
+**Ember users:** Elytra is the same app, renamed. Your entries, notes and settings are untouched —
+Android treats it as an update, not a new app.
+
+Jot quick notes during the day (from the app, the notification drawer or a Quick Settings tile). In the evening Elytra asks you a few questions about your day, then writes the entry for you on a handwritten page. Over time it picks up your moods, habits, sleep and the people and themes that keep coming up.
 
 The Windows app can also pair with your phone over the same Wi-Fi: your journal syncs between the two, and either one can chat through a local model (via [Ollama](https://ollama.com)) running on the computer instead of an API key.
 
@@ -17,22 +22,22 @@ Both apps check this repo for new versions and tell you when one is out.
 
 **Linux** has its own repo: [ember-desktop-linux](https://github.com/mecharoy/ember-desktop-linux/releases).
 
-**iPhone:** there is no iPhone app. Apple only lets an app run on other people's phones through a paid developer account ($99 a year), and Ember is free, so I am not publishing one. The unfinished, never-run iPhone code is on the [`ios` branch](https://github.com/mecharoy/emberapp/tree/ios) if you want to build and sign it yourself.
+**iPhone:** there is no iPhone app. Apple only lets an app run on other people's phones through a paid developer account ($99 a year), and Elytra is free, so I am not publishing one. The unfinished, never-run iPhone code is on the [`ios` branch](https://github.com/mecharoy/emberapp/tree/ios) if you want to build and sign it yourself.
 
 ## AI
 
-Ember needs a way to talk to a model for the conversation and the writing. Any of:
+Elytra needs a way to talk to a model for the conversation and the writing. Any of:
 
 - a free key from [Groq](https://console.groq.com/keys), [Google AI Studio](https://aistudio.google.com/apikey), [OpenRouter](https://openrouter.ai/keys), [Cerebras](https://cloud.cerebras.ai) or [Mistral](https://console.mistral.ai/api-keys),
 - an [Anthropic](https://console.anthropic.com) key,
 - an [OpenAI](https://platform.openai.com/api-keys) key, or
 - on Windows, a local model through [Ollama](https://ollama.com) — nothing leaves your computer, and a paired phone can use it too.
 
-Every model gets the same features, including the checklist Ember drafts before a conversation; free and local models work as well as the paid ones.
+Every model gets the same features, including the checklist Elytra drafts before a conversation; free and local models work as well as the paid ones.
 
 A key (when you use one) stays in the app's private storage. Your journal is a SQLite database on your device — no account, and no sync unless you pair a phone with the Windows app yourself. What you write in the conversation goes to the provider you picked. Export everything any time from Settings.
 
-Ember is a reflection tool, not therapy.
+Elytra is a reflection tool, not therapy.
 
 ## Build
 

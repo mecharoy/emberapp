@@ -228,7 +228,7 @@ object DayReminders {
     val replyIntent = Intent(context, DayReminderReceiver::class.java).setAction(ACTION_REPLY).putExtra(EXTRA_POINT, p.id)
     val replyPending = PendingIntent.getBroadcast(context, p.notificationId + 10, replyIntent, PendingIntent.FLAG_UPDATE_CURRENT or mutable)
     val remoteInput = RemoteInput.Builder(REMOTE_INPUT_KEY).setLabel(p.question).build()
-    val reply = NotificationCompat.Action.Builder(R.drawable.ic_stat_ember, "Jot it down", replyPending)
+    val reply = NotificationCompat.Action.Builder(R.drawable.ic_stat_elytra, "Jot it down", replyPending)
       .addRemoteInput(remoteInput)
       .setAllowGeneratedReplies(false)
       .build()
@@ -245,16 +245,16 @@ object DayReminders {
     val openPending = PendingIntent.getActivity(context, p.notificationId + 30, openIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
     val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-      .setSmallIcon(R.drawable.ic_stat_ember)
+      .setSmallIcon(R.drawable.ic_stat_elytra)
       .setColor(Color.parseColor("#B3441A"))
-      .setContentTitle(if (status == null) p.title else "Ember")
+      .setContentTitle(if (status == null) p.title else "Elytra")
       .setContentText(status ?: p.question)
       .setContentIntent(openPending)
       .setAutoCancel(true)
       .setCategory(NotificationCompat.CATEGORY_REMINDER)
       .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
     if (status == null) {
-      builder.addAction(reply).addAction(R.drawable.ic_stat_ember, p.skipLabel, skipPending)
+      builder.addAction(reply).addAction(R.drawable.ic_stat_elytra, p.skipLabel, skipPending)
     } else {
       builder.setSilent(true).setTimeoutAfter(4000)
     }
@@ -271,7 +271,7 @@ object DayReminders {
 
   fun onReply(context: Context, id: String?, text: String) {
     val p = point(id) ?: return
-    val status = if (record(context, p, text, skipped = false)) "Added to today's check-in." else "Couldn't save that. Open Ember once, then try again."
+    val status = if (record(context, p, text, skipped = false)) "Added to today's check-in." else "Couldn't save that. Open Elytra once, then try again."
     // Re-posting also ends the reply field's spinner.
     post(context, p, status)
   }

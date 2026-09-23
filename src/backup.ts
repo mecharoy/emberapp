@@ -9,12 +9,12 @@ import { getSetting, setSetting } from "./db/settings";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Backups to Documents/Ember work on this phone. */
+/** Backups to Documents/Elytra work on this phone. */
 export function backupCopySupported(): boolean {
   return androidBridge()?.backupCopySupported() ?? false;
 }
 
-/** Writes Documents/Ember/Ember backup.db now. Throws with a readable message. */
+/** Writes Documents/Elytra/Elytra backup.db now. Throws with a readable message. */
 export async function backupNow(): Promise<void> {
   const bridge = androidBridge();
   if (!bridge?.backupCopySupported()) throw new Error("Backup copies need Android 10 or newer.");
@@ -24,7 +24,7 @@ export async function backupNow(): Promise<void> {
   await setSetting("backup_last_at", new Date().toISOString());
 }
 
-/** Once a day, when Ember opens: refresh the copy if it's switched on and
+/** Once a day, when Elytra opens: refresh the copy if it's switched on and
  *  there is something to keep. Failures wait for the next day. */
 export async function backupIfDue(): Promise<void> {
   try {
@@ -39,7 +39,7 @@ export async function backupIfDue(): Promise<void> {
   }
 }
 
-/** On Android the picker opens in Documents/Ember and MainActivity copies the
+/** On Android the picker opens in Documents/Elytra and MainActivity copies the
  *  file aside, answering through window.__emberBackupPicked. */
 function pickOnAndroid(bridge: NonNullable<ReturnType<typeof androidBridge>>): Promise<string> {
   const w = window as unknown as { __emberBackupPicked?: (result: string) => void };
@@ -61,7 +61,7 @@ export async function pickBackup(): Promise<BackupSummary | null> {
     if (result === "cancel") return null;
     if (result) throw new Error(result);
   } else {
-    const picked = await open({ multiple: false, directory: false, title: "Pick your Ember backup" });
+    const picked = await open({ multiple: false, directory: false, title: "Pick your Elytra backup" });
     if (!picked) return null;
     const bytes = await readFile(picked);
     try {
@@ -73,7 +73,7 @@ export async function pickBackup(): Promise<BackupSummary | null> {
   return readStagedBackup();
 }
 
-/** Puts the picked backup in place of the current journal and restarts Ember. */
+/** Puts the picked backup in place of the current journal and restarts Elytra. */
 export async function restorePickedBackup(): Promise<void> {
   noteJournalRestore();
   await closeDb();

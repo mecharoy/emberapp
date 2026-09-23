@@ -1,4 +1,4 @@
-// The "What's new" card shown once after Ember has been updated.
+// The "What's new" card shown once after Elytra has been updated.
 //
 // Each release with something worth pointing out gets an entry below. A
 // release without one is a small fix, and the card just says so.
@@ -9,6 +9,28 @@ export interface Highlight {
 }
 
 export const RELEASE_NOTES: Record<string, Highlight[]> = {
+  "2.0.0": [
+    {
+      title: "Ember is now Elytra",
+      text: "Same journal, same entries, same place on your phone. The name, the colours, the type and the icon are new.",
+    },
+    {
+      title: "A recap of your week",
+      text: "Patterns (it used to be Insights) opens with a short slideshow of your week or month: your mood, your best day, what was on your mind and who was around.",
+    },
+    {
+      title: "Patterns, tidied up",
+      text: "Sections are grouped into chapters. People, themes and habits you have not mentioned for a month drop off the lists, so what you see is your life now.",
+    },
+    {
+      title: "The beetle",
+      text: "It has a place of its own, listens while you write, and tapping it now also shares one thing Patterns has noticed.",
+    },
+    {
+      title: "Fixes",
+      text: "Going back from a day in the Journal returns to the Journal, and restoring a backup now works on Android.",
+    },
+  ],
   "1.5.3": [
     {
       title: "Checklists on every model",
@@ -25,7 +47,7 @@ export const RELEASE_NOTES: Record<string, Highlight[]> = {
       text: "The mood column now fills in once an activity has come up on a few days.",
     },
     {
-      title: "Cleaner Insights",
+      title: "Cleaner Patterns page",
       text: "Notes on how to read each section moved behind its i button.",
     },
     {
@@ -36,19 +58,19 @@ export const RELEASE_NOTES: Record<string, Highlight[]> = {
   "1.5.0": [
     {
       title: "A checklist for the conversation",
-      text: "Before you talk, Ember drafts what to cover: past, today and later. Cross off anything you would rather skip.",
+      text: "Before you talk, Elytra drafts what to cover: past, today and later. Cross off anything you would rather skip.",
     },
     {
       title: "Reminders through the day",
-      text: "Tell Ember when you usually have lunch, a break and dinner, and it nudges you to jot down what you did.",
+      text: "Tell Elytra when you usually have lunch, a break and dinner, and it nudges you to jot down what you did.",
     },
     {
       title: "Memory by topic",
-      text: "What Ember remembers is kept in topic files you can read and edit under Insights.",
+      text: "What Elytra remembers is kept in topic files you can read and edit under Patterns.",
     },
     {
       title: "Suggestions",
-      text: "Ember points out patterns and offers small changes. Add any of them to your habits with a tap.",
+      text: "Elytra points out patterns and offers small changes. Add any of them to your habits with a tap.",
     },
     {
       title: "Your own writing style",

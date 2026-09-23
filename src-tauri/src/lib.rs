@@ -1,5 +1,5 @@
-// Ember for Android: database migrations, plugins, a private file store for
-// API keys, and the link with Ember on a computer.
+// Elytra for Android: database migrations, plugins, a private file store for
+// API keys, and the link with Elytra on a computer.
 
 mod lan_client;
 mod lan_proto;
@@ -168,7 +168,7 @@ fn db_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 
 fn check_backup(bytes: &[u8]) -> Result<(), String> {
     if !bytes.starts_with(b"SQLite format 3\x00") {
-        return Err("That file isn't an Ember backup.".into());
+        return Err("That file isn't a journal database.".into());
     }
     if !bytes.windows(20).any(|w| w == b"CREATE TABLE entries") {
         return Err("That database has no journal in it.".into());
@@ -177,14 +177,40 @@ fn check_backup(bytes: &[u8]) -> Result<(), String> {
 }
 
 /// Copies a picked backup's bytes aside, without touching ember.db.
+/// The bytes of a picked backup, however the webview managed to send them.
+///
+/// Tauri only puts a `Uint8Array` in a RAW request body when it can use its
+/// custom-protocol IPC. On Android it never can — the platform cannot read a
+/// request body, so Tauri always falls back to `postMessage` — and on desktop
+/// it drops to the same fallback permanently after any failure of that
+/// protocol. Over `postMessage` the array arrives JSON-encoded, as a list of
+/// numbers. Restoring a journal has to work on both paths, so this accepts
+/// either rather than insisting on one. (Before this, restoring a backup could
+/// not work on Android at all, and failed on desktop with "Expected the backup
+/// file's bytes." whenever the custom protocol had fallen back.)
+fn picked_bytes(request: &tauri::ipc::Request<'_>) -> Result<Vec<u8>, String> {
+    match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) => Ok(bytes.clone()),
+        tauri::ipc::InvokeBody::Json(value) => {
+            let list = value.as_array().ok_or("Expected the backup file's bytes.")?;
+            let mut out = Vec::with_capacity(list.len());
+            for n in list {
+                let byte = n
+                    .as_u64()
+                    .and_then(|v| u8::try_from(v).ok())
+                    .ok_or("The backup file's bytes were not readable.")?;
+                out.push(byte);
+            }
+            Ok(out)
+        }
+    }
+}
 #[tauri::command]
 fn backup_stage(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<(), String> {
-    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
-        return Err("Expected the backup file's bytes.".into());
-    };
-    check_backup(bytes)?;
+    let bytes = picked_bytes(&request)?;
+    check_backup(&bytes)?;
     let dir = db_dir(&app)?;
-    std::fs::write(dir.join(STAGED_BACKUP), bytes).map_err(|e| format!("Could not copy the backup: {e}"))
+    std::fs::write(dir.join(STAGED_BACKUP), &bytes).map_err(|e| format!("Could not copy the backup: {e}"))
 }
 
 /// Puts the staged backup in place of ember.db. The webview closes its

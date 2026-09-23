@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import UpdateBanner from "./components/UpdateBanner";
 import WhatsNew from "./components/WhatsNew";
-import BottomNav from "./components/BottomNav";
+import Dock from "./components/Dock";
+import Mycelium from "./components/Mycelium";
 import Onboarding from "./components/Onboarding";
 import QuickNote from "./components/QuickNote";
 import Today from "./windows/Today";
@@ -15,7 +16,9 @@ import { conversationState } from "./db/sessions";
 import { startScheduler } from "./scheduler";
 import { backupIfDue } from "./backup";
 import { startComputerSync } from "./lan/phoneLink";
-import { useBackButton } from "./useBackButton";
+import { BACK_TAB, useBackButton } from "./useBackButton";
+import { startTypingWatch } from "./mascot/typing";
+import { claim, release } from "./mascot/pulse";
 
 function App() {
   const [active, setActive] = useState("today");
@@ -45,9 +48,10 @@ function App() {
 
   useEffect(() => {
     firstRunScreen().then(setFirstRun);
+    startTypingWatch(); // the beetle listens while you write
     startScheduler(); // reminders, missed-day skips, weekly review
     startComputerSync(); // the journal on a paired computer, when on the same Wi-Fi
-    // The daily copy in Documents/Ember: on opening, and when Ember is put away.
+    // The daily copy in Documents/Elytra: on opening, and when Elytra is put away.
     backupIfDue();
     const onHide = () => {
       if (document.visibilityState === "hidden") backupIfDue();
@@ -56,8 +60,23 @@ function App() {
     return () => document.removeEventListener("visibilitychange", onHide);
   }, []);
 
+  // Changing page: the beetle takes a short flight to the new one.
+  const firstPage = useRef(true);
+  useEffect(() => {
+    if (firstPage.current) {
+      firstPage.current = false;
+      return;
+    }
+    claim("nav", "flying");
+    const t = setTimeout(() => release("nav"), 900);
+    return () => {
+      clearTimeout(t);
+      release("nav");
+    };
+  }, [active]);
+
   // Back from any other tab returns to Today; back on Today leaves the app.
-  useBackButton(active !== "today", () => setActive("today"));
+  useBackButton(active !== "today", () => setActive("today"), BACK_TAB);
 
   // Moves Today to the new day once the old one is safe to leave: its
   // conversation is wrapped up or never started, and, if there was one, you
@@ -99,7 +118,8 @@ function App() {
   const dayShown = pastDay ?? liveDay;
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-paper text-ink">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-ground text-fg">
+      <Mycelium />
       <UpdateBanner />
       <main className="relative min-h-0 flex-1">
         {/* Today stays mounted and is only hidden: unmounting it would drop an
@@ -139,7 +159,7 @@ function App() {
           </div>
         )}
       </main>
-      <BottomNav active={active} onSelect={handleSelect} />
+      <Dock active={active} onSelect={handleSelect} onQuickNote={() => setNoteOpen(true)} />
       <QuickNote open={noteOpen} onClose={() => setNoteOpen(false)} />
       <NoteSheetBack open={noteOpen} onClose={() => setNoteOpen(false)} />
       {(firstRun === "setup" || firstRun === "welcome-back") && (

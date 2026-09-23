@@ -2,7 +2,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { ProviderError } from "../types";
 import { linesFromEvents, type ChatEvent, type OllamaTransport } from "./ollama";
 
-// The computer's AI, reached through Ember there (lan_client.rs): its local
+// The computer's AI, reached through Elytra there (lan_client.rs): its local
 // model, or whatever provider it uses. The computer picks the model; the
 // phone sends the conversation and gets Ollama-style reply lines back.
 

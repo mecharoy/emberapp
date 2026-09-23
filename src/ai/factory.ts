@@ -13,7 +13,7 @@ import type { AIProvider } from "./types";
  *   Gemini, OpenRouter…). The default: free, needs only a key.
  * - "anthropic": console.anthropic.com API key, billed pay-as-you-go.
  * - "openai": an OpenAI API key (ChatGPT's models), billed pay-as-you-go.
- * - "pc": the AI provider of a paired computer, through Ember there, while
+ * - "pc": the AI provider of a paired computer, through Elytra there, while
  *   both are on the same Wi-Fi. The computer picks the model.
  * A setting left over from anything else falls back to "cloud", so the chat
  * says "add a key" instead of naming a provider the phone doesn't have.

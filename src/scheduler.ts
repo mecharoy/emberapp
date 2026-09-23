@@ -146,7 +146,7 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 let syncing: Promise<void> | null = null;
 
 /**
- * Hands Android the reminders it should ring while Ember is closed. Replaces
+ * Hands Android the reminders it should ring while Elytra is closed. Replaces
  * whatever was handed over before, so it is safe to call as often as needed.
  * Notification text is only ever the fixed evening line or the reminder the
  * user asked for — never captures or entries.
@@ -191,7 +191,7 @@ async function doSync(): Promise<void> {
   planEveningReminders(state).forEach((at, i) => {
     sendNotification({
       id: EVENING_ID + i,
-      title: "Ember",
+      title: "Elytra",
       body: "Ready to talk about today?",
       schedule: Schedule.at(atLocal(at), false, true),
       autoCancel: true,
@@ -203,7 +203,7 @@ async function doSync(): Promise<void> {
     if (r.due_at > state.now) {
       sendNotification({
         id: TASK_ID + r.id,
-        title: "Ember reminder",
+        title: "Elytra reminder",
         body: r.text,
         schedule: Schedule.at(atLocal(r.due_at), false, true),
         autoCancel: true,
@@ -211,7 +211,7 @@ async function doSync(): Promise<void> {
     } else {
       // Due already (set for a time that has passed): ring now, once.
       await markReminderFired(r.id);
-      sendNotification({ id: TASK_ID + r.id, title: "Ember reminder", body: r.text, autoCancel: true });
+      sendNotification({ id: TASK_ID + r.id, title: "Elytra reminder", body: r.text, autoCancel: true });
       firedNow = true;
     }
   }

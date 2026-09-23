@@ -15,7 +15,7 @@ import {
 import { getPeer } from "../db/sync";
 import { sinceLabel } from "../lan/syncEvents";
 
-/** Pairing with Ember on a computer on the same network. */
+/** Pairing with Elytra on a computer on the same network. */
 export default function ComputerLinkSettings() {
   const [link, setLink] = useState<ComputerLink | null | undefined>(undefined);
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -108,9 +108,9 @@ export default function ComputerLinkSettings() {
           : "Uses the computer's AI provider.";
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-[15px] text-ink">
+        <p className="text-[15px] text-fg">
           {link.desktopName}
-          <span className="block text-[13px] text-ink-faint">
+          <span className="block text-[13px] text-fg-faint">
             {link.address} &middot; last synced {sinceLabel(lastSync)}
           </span>
         </p>
@@ -139,15 +139,15 @@ export default function ComputerLinkSettings() {
         {found !== null && found.length > 1 && (
           <div className="flex flex-col gap-1.5">
             {found.map((f) => (
-              <label key={f.id} className="flex items-center gap-3 text-[15px] text-ink">
+              <label key={f.id} className="flex items-center gap-3 text-[15px] text-fg">
                 <input
                   type="radio"
                   name="computer"
                   checked={address === f.address}
                   onChange={() => setAddress(f.address)}
-                  className="h-5 w-5 accent-ember"
+                  className="h-5 w-5 accent-moss"
                 />
-                {f.name} <span className="text-[13px] text-ink-faint">{f.address}</span>
+                {f.name} <span className="text-[13px] text-fg-faint">{f.address}</span>
               </label>
             ))}
           </div>

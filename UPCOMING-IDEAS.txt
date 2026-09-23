@@ -1,4 +1,4 @@
-Ember: ideas for upcoming updates
+Elytra: ideas for upcoming updates
 
 1. Google Drive sync
    Keep the journal backed up to your own Google Drive, and bring it back on a new phone.

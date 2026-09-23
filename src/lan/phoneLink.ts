@@ -6,7 +6,7 @@ import { claimJournal } from "../install";
 import { getLocalInstallId, setApiKey, setCloudApiKey } from "../secrets";
 import { announceSync, settleRestoredJournal } from "./syncEvents";
 
-// The phone's side of the link with Ember on a computer. Rust (lan_client.rs)
+// The phone's side of the link with Elytra on a computer. Rust (lan_client.rs)
 // finds the computer, pairs and seals every request; the journal is read and
 // written here, through src/db/sync.ts.
 
@@ -143,7 +143,7 @@ export function syncWithComputer(): Promise<SyncOutcome> {
 
 let started = false;
 
-/** Syncs when Ember opens or comes back to the screen, and every minute
+/** Syncs when Elytra opens or comes back to the screen, and every minute
  *  while it's on screen, if a computer is paired. */
 export function startComputerSync(): void {
   if (started) return;

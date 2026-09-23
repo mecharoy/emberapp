@@ -124,8 +124,8 @@ object QuickNotes {
 
     val replyIntent = Intent(context, QuickNoteReceiver::class.java).setAction(ACTION_REPLY)
     val replyPending = PendingIntent.getBroadcast(context, 1, replyIntent, PendingIntent.FLAG_UPDATE_CURRENT or mutable)
-    val remoteInput = RemoteInput.Builder(REMOTE_INPUT_KEY).setLabel("What's on your mind?").build()
-    val replyAction = NotificationCompat.Action.Builder(R.drawable.ic_stat_ember, "Jot a note", replyPending)
+    val remoteInput = RemoteInput.Builder(REMOTE_INPUT_KEY).setLabel("What just happened?").build()
+    val replyAction = NotificationCompat.Action.Builder(R.drawable.ic_stat_elytra, "Jot a note", replyPending)
       .addRemoteInput(remoteInput)
       .setAllowGeneratedReplies(false)
       .build()
@@ -134,10 +134,10 @@ object QuickNotes {
     val openPending = PendingIntent.getActivity(context, 2, openIntent, PendingIntent.FLAG_UPDATE_CURRENT or immutable)
 
     val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-      .setSmallIcon(R.drawable.ic_stat_ember)
+      .setSmallIcon(R.drawable.ic_stat_elytra)
       .setColor(Color.parseColor("#B3441A"))
-      .setContentTitle("Ember")
-      .setContentText(status ?: "Something happened? Jot it down.")
+      .setContentTitle("Elytra")
+      .setContentText(status ?: "Note it before it goes.")
       .setContentIntent(openPending)
       .addAction(replyAction)
       .setOngoing(true)
@@ -160,7 +160,7 @@ class QuickNoteReceiver : BroadcastReceiver() {
     val status = when {
       text.isBlank() -> null
       QuickNotes.save(context, text) -> "Saved to today's notes. Jot another?"
-      else -> "Couldn't save that. Open Ember once, then try again."
+      else -> "Couldn't save that. Open Elytra once, then try again."
     }
     // Re-posting is also what ends the reply field's spinner.
     QuickNotes.refresh(context, status)
@@ -221,7 +221,7 @@ class QuickNoteActivity : Activity() {
       typeface = android.graphics.Typeface.SERIF
     }
     val input = EditText(this).apply {
-      hint = "What's on your mind?"
+      hint = "What just happened?"
       setTextColor(ink)
       setHintTextColor(faint)
       setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
@@ -245,7 +245,7 @@ class QuickNoteActivity : Activity() {
           Toast.makeText(this@QuickNoteActivity, "Saved to today's notes", Toast.LENGTH_SHORT).show()
           finish()
         } else {
-          Toast.makeText(this@QuickNoteActivity, "Couldn't save. Open Ember once first.", Toast.LENGTH_LONG).show()
+          Toast.makeText(this@QuickNoteActivity, "Couldn't save. Open Elytra once first.", Toast.LENGTH_LONG).show()
         }
       }
     }

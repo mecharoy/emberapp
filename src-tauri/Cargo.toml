@@ -1,8 +1,8 @@
 [package]
 name = "ember-mobile"
-version = "1.5.3"
-description = "Ember for Android - a journal that writes itself"
-authors = ["Ember"]
+version = "2.0.0"
+description = "Elytra for Android - tell it your day, it writes the page"
+authors = ["Elytra"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

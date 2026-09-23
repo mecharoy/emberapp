@@ -1,4 +1,4 @@
-// The phone's side of the link with Ember on a computer: finding it on the
+// The phone's side of the link with Elytra on a computer: finding it on the
 // home network, pairing, and sealed requests (sync, and chat with the model
 // running there). The lasting key lives beside the API keys, never in ember.db.
 
@@ -109,7 +109,7 @@ fn random_id() -> String {
 
 fn unreachable(name: &str) -> String {
     format!(
-        "Can't reach {name}. Check that Ember is open there with phone sync on, and both are on the same network. \
+        "Can't reach {name}. Check that Elytra is open there with phone sync on, and both are on the same network. \
          Campus and office Wi-Fi often block this; connect the computer to this phone's hotspot instead."
     )
 }
@@ -224,7 +224,7 @@ pub async fn lan_pair(
         return Err("The code is 10 letters and digits.".into());
     }
     if phone_id.trim().is_empty() || phone_id.len() > 64 {
-        return Err("Restart Ember and try again.".into());
+        return Err("Restart Elytra and try again.".into());
     }
 
     let hello: Value = client
@@ -236,9 +236,9 @@ pub async fn lan_pair(
         .map_err(|_| unreachable("the computer"))?
         .json()
         .await
-        .map_err(|_| "No Ember at that address.".to_string())?;
+        .map_err(|_| "No Elytra at that address.".to_string())?;
     if hello["app"] != "ember" {
-        return Err("No Ember at that address.".into());
+        return Err("No Elytra at that address.".into());
     }
     let desktop_id = hello["id"].as_str().unwrap_or_default().to_string();
 
