@@ -24,6 +24,7 @@ import { INSTRUMENT_ORDER, INSTRUMENTS, parseEnabledInstruments } from "../insig
 import { androidBridge } from "../androidBridge";
 import { ensureNotificationPermission } from "../scheduler";
 import { backupCopySupported, backupNow } from "../backup";
+import { IS_WEB } from "../edition";
 import RestoreBackup from "../components/RestoreBackup";
 import ComputerLinkSettings from "../components/ComputerLinkSettings";
 import { getProvider } from "../ai/factory";
@@ -458,9 +459,11 @@ export default function Settings({ active = true }: { active?: boolean }) {
         </Field>
       </Section>
 
-      <Section title="Sync with computer">
-        <ComputerLinkSettings />
-      </Section>
+      {!IS_WEB && (
+        <Section title="Sync with computer">
+          <ComputerLinkSettings />
+        </Section>
+      )}
 
       <Section title="You">
         <Field label="Your name">
@@ -602,6 +605,7 @@ export default function Settings({ active = true }: { active?: boolean }) {
         <WritingStyle value={form.writing_style_sample} onChange={(v) => update("writing_style_sample", v)} />
       </Section>
 
+      {!IS_WEB && (
       <Section title="Updates & feedback">
         <UpdatesAndFeedback
           source={form.update_source}
@@ -610,10 +614,20 @@ export default function Settings({ active = true }: { active?: boolean }) {
           onSave={handleSave}
         />
       </Section>
+      )}
 
       <Section title="Data">
         <div className="flex flex-col gap-2.5">
-          <p className="hint">Included in your phone&rsquo;s Google backup, without API keys.</p>
+          <p className="hint">
+            {IS_WEB
+              ? "Kept in this browser only. Save a backup file now and then: clearing Safari's website data erases the journal."
+              : "Included in your phone’s Google backup, without API keys."}
+          </p>
+          {IS_WEB && (
+            <button onClick={handleBackupNow} disabled={backupState.status === "working"} className="btn-subtle self-start">
+              {backupState.status === "working" ? "Saving…" : "Save a backup file"}
+            </button>
+          )}
           {backupCopySupported() && (
             <label className="flex items-start gap-3 text-[14.5px] text-fg">
               <input
@@ -642,7 +656,9 @@ export default function Settings({ active = true }: { active?: boolean }) {
             buttonClass="btn-subtle self-start"
             warning="This replaces all current data. Elytra restarts."
           />
-          {backupState.status === "done" && <p className="text-[13.5px] text-moss">Saved to Documents/Elytra.</p>}
+          {backupState.status === "done" && (
+            <p className="text-[13.5px] text-moss">{IS_WEB ? "Backup file saved to your downloads." : "Saved to Documents/Elytra."}</p>
+          )}
           {backupState.status === "error" && <p className="text-[13.5px] text-danger">{backupState.message}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2.5">

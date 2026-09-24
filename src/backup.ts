@@ -6,6 +6,7 @@ import { closeDb } from "./db/client";
 import { noteJournalRestore } from "./lan/syncEvents";
 import { hasJournalData, readStagedBackup, snapshotDatabase, type BackupSummary } from "./db/backup";
 import { getSetting, setSetting } from "./db/settings";
+import { IS_WEB } from "./edition";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -16,6 +17,12 @@ export function backupCopySupported(): boolean {
 
 /** Writes Documents/Elytra/Elytra backup.db now. Throws with a readable message. */
 export async function backupNow(): Promise<void> {
+  // In the browser a backup is a file the person downloads and keeps.
+  if (IS_WEB) {
+    await invoke("backup_download");
+    await setSetting("backup_last_at", new Date().toISOString());
+    return;
+  }
   const bridge = androidBridge();
   if (!bridge?.backupCopySupported()) throw new Error("Backup copies need Android 10 or newer.");
   await snapshotDatabase(bridge.backupSnapshotPath());

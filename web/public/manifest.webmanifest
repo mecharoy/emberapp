@@ -1,0 +1,16 @@
+{
+  "name": "Elytra",
+  "short_name": "Elytra",
+  "description": "A journal you talk to. Notes during the day, a short conversation in the evening, and the entry written for you. Everything stays on your phone.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#171b17",
+  "theme_color": "#171b17",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

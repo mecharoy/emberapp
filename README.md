@@ -22,7 +22,7 @@ Both apps check this repo for new versions and tell you when one is out.
 
 **Linux** has its own repo: [ember-desktop-linux](https://github.com/mecharoy/ember-desktop-linux/releases).
 
-**iPhone:** there is no iPhone app. Apple only lets an app run on other people's phones through a paid developer account ($99 a year), and Elytra is free, so I am not publishing one. The unfinished, never-run iPhone code is on the [`ios` branch](https://github.com/mecharoy/emberapp/tree/ios) if you want to build and sign it yourself.
+**iPhone:** use the web app at **https://mecharoy.github.io/emberapp/**. Open it in Safari, tap Share, then *Add to Home Screen*: it opens full-screen like an app and works offline. Your journal stays in Safari's storage on the phone and never leaves it except to reach the AI you choose. Save a backup file now and then (Settings → Data), because clearing Safari's website data erases the journal. The web app has no reminders and no sync with a computer. There is no App Store app: Apple only lets an app run on other people's phones through a paid developer account ($99 a year).
 
 ## AI
 

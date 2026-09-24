@@ -1,6 +1,6 @@
 [package]
 name = "ember-mobile"
-version = "2.0.0"
+version = "2.0.1"
 description = "Elytra for Android - tell it your day, it writes the page"
 authors = ["Elytra"]
 edition = "2021"

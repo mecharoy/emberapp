@@ -16,6 +16,7 @@
 
 import { fetch } from "@tauri-apps/plugin-http";
 import { getVersion } from "@tauri-apps/api/app";
+import { IS_WEB } from "../edition";
 import { getSetting, setSetting } from "../db/settings";
 
 /** The repository releases are published from. A link pasted in Settings wins over this. */
@@ -126,6 +127,8 @@ export type CheckResult =
 /** Never throws. `manual` is the Settings button, which deserves an answer
  *  even for a version the user already dismissed. */
 export async function checkForUpdate(manual = false): Promise<CheckResult> {
+  // The web edition is updated where it is hosted; there is nothing to download.
+  if (IS_WEB) return { status: "unconfigured" };
   try {
     const source = await updateSource();
     const url = manifestUrlFor(source);
