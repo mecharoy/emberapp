@@ -32,6 +32,9 @@ interface ChartPalette {
     hover: string;
   };
   sentiment: { warm: number[]; neutral: number[]; cool: number[] };
+  /** One colour per Patterns chapter (chapters.tsx). Identity, never text:
+   *  it marks the chapter's icon, dot and bar, always beside its name. */
+  chapters: Record<"mood" | "days" | "body" | "mind" | "letters", string>;
 }
 
 const PALETTES: Record<Theme, ChartPalette> = {
@@ -52,6 +55,11 @@ const PALETTES: Record<Theme, ChartPalette> = {
       hover: "rgba(228, 231, 220, 0.06)",
     },
     sentiment: { warm: [0xcc, 0x7f, 0x58], neutral: [0x8a, 0x8f, 0x85], cool: [0x4a, 0x8f, 0xc4] },
+    // Validated 2026-10-09 (dataviz validate_palette.js, dark, surface #1e241e):
+    // lightness band, chroma, adjacent CVD ΔE 9.4, normal-vision 26.5, all
+    // >= 3:1. All-pairs, blue↔violet is close (ΔE 1.9 protan) — fine only
+    // because a chapter colour never appears without its name.
+    chapters: { mood: "#199e70", days: "#d95926", body: "#3987e5", mind: "#c98500", letters: "#9085e9" },
   },
   light: {
     series: { mood: "#43903c", energy: "#1f6f9c" },
@@ -68,6 +76,10 @@ const PALETTES: Record<Theme, ChartPalette> = {
       hover: "rgba(29, 34, 29, 0.05)",
     },
     sentiment: { warm: [0x8a, 0x4a, 0x23], neutral: [0x6f, 0x74, 0x6b], cool: [0x1f, 0x6f, 0x9c] },
+    // Validated 2026-10-09 (light, surface #ffffff): every check passes,
+    // adjacent CVD ΔE 9.3, normal-vision 24.2, all >= 3:1. Not the dark set
+    // flipped: the pale aqua and yellow of that family fall under 3:1 on white.
+    chapters: { mood: "#14855d", days: "#c4501c", body: "#2a78d6", mind: "#a36d00", letters: "#4a3aa7" },
   },
 };
 
@@ -80,6 +92,7 @@ export const SERIES = { ...PALETTES.dark.series };
 export const WING_RAMP: string[] = [...PALETTES.dark.ramp];
 export const CHROME = { ...PALETTES.dark.chrome };
 export let HABIT_LESS = PALETTES.dark.habitLess;
+export const CHAPTER_COLORS = { ...PALETTES.dark.chapters };
 
 let sentiment = PALETTES.dark.sentiment;
 
@@ -90,6 +103,7 @@ function applyChartTheme(t: Theme) {
   WING_RAMP.length = 0;
   WING_RAMP.push(...p.ramp);
   HABIT_LESS = p.habitLess;
+  Object.assign(CHAPTER_COLORS, p.chapters);
   sentiment = p.sentiment;
 }
 

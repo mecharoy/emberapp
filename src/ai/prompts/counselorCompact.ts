@@ -87,7 +87,7 @@ ${l.briefing}
 Their check-in today (trust it over your own reading):
 ${l.checkIn}
 
-Their day in parts:
+Their day in parts (never ask what time a meal happened):
 ${l.dayParts}
 
 Today's notes:

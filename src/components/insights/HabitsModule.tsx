@@ -167,7 +167,7 @@ export default function HabitsModule({
             <button onClick={() => setMonth(shiftMonth(month, -1))} className="btn-ghost px-2" aria-label="Previous month">
               &lsaquo;
             </button>
-            <span className="w-32 text-center font-serif text-[15px] text-fg">{monthLabel(month)}</span>
+            <span className="w-32 text-center text-[14px] font-medium text-fg">{monthLabel(month)}</span>
             <button
               onClick={() => setMonth(shiftMonth(month, 1))}
               disabled={isCurrentMonth}
@@ -207,7 +207,7 @@ export default function HabitsModule({
             <div key={obs.id} className="flex flex-col gap-4 py-5 first:pt-0 md:flex-row md:gap-8">
               <div className="flex shrink-0 flex-col gap-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="font-serif text-[17px] text-fg">{obs.key}</span>
+                  <span className="text-[15.5px] font-semibold text-fg">{obs.key}</span>
                   <div className="flex items-center gap-1.5 text-[12px] text-fg-faint">
                     Goal
                     <div className="flex gap-0.5 rounded-md border border-line p-0.5" role="group" aria-label={`Goal for ${obs.key}`}>

@@ -118,6 +118,21 @@ export async function updateSource(): Promise<string> {
   return (await getSetting("update_source")).trim() || DEFAULT_UPDATE_SOURCE;
 }
 
+/** A running Elytra looks again once the last successful look is this old. */
+export const RECHECK_EVERY_MS = 6 * 60 * 60 * 1000;
+/** After a look that failed (offline, GitHub down), wait this long before the next. */
+export const RETRY_AFTER_MS = 30 * 60 * 1000;
+
+/** Whether a running Elytra should look again. `lastChecked` is the
+ *  update_checked_at setting (written only when GitHub answered); `lastTry`
+ *  is when this run last tried at all, so being offline doesn't mean a
+ *  request on every focus. Pure; tested in update.test.ts. */
+export function updateCheckDue(lastChecked: string, lastTry: number, now: number): boolean {
+  if (now - lastTry < RETRY_AFTER_MS) return false;
+  const checked = Date.parse(lastChecked);
+  return !Number.isFinite(checked) || now - checked >= RECHECK_EVERY_MS;
+}
+
 export type CheckResult =
   | { status: "available"; current: string; release: Release }
   | { status: "current"; current: string }

@@ -215,7 +215,7 @@ export type SettingKey =
   | "assessments_enabled" // comma-separated instruments the user opted into
   | "assessments_snoozed_until" // YYYY-MM-DD: don't offer a due questionnaire before this day
   | "update_source" // GitHub repository (or latest.json link) updates and feedback go through; empty = built-in default
-  | "update_auto_check" // "1" = look for a newer release when Elytra opens
+  | "update_auto_check" // "1" = look for a newer release when Elytra opens, and every 6 hours while it runs
   | "update_checked_at" // ISO timestamp of the last successful look
   | "update_dismissed_version" // a release the user said "later" to; not offered again on launch
   | "last_seen_version" // the version whose "What's new" card was last shown or skipped
@@ -231,4 +231,23 @@ export type SettingKey =
   | "day_reminders" // "1" = a note reminder at those three times (DayReminders.kt)
   | "writing_style_sample" // their own writing, so entries sound like them
   | "context_mode" // auto | full | compact: how much Elytra sends the model (ai/budget.ts); this device only
+  | "companion_tip" // index of the last tip the beetle showed; "" = it has not introduced itself yet
   | "insight_patterns"; // JSON: links and suggestions from ai/patterns.ts
+
+/** One casual chat (migration 0015): talk about anything, apart from the day. */
+export interface ChatThread {
+  uid: string;
+  title: string;
+  /** friend | coach | therapist, or "" for whatever Settings says. */
+  approach: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  uid: string;
+  thread_uid: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}

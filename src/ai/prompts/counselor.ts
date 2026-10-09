@@ -220,8 +220,9 @@ ${l.recentJournals}
 - Their check-in today (their own answers — trust these over your own
   reading, and never ask for them again):
 ${l.checkIn}
-- Their day in parts, split at the times from the check-in (the notes'
-  timestamps tell you which part each note belongs to):
+- Their day in parts, roughly (the notes' timestamps tell you which part
+  each note belongs to). Never ask what time a meal or break happened; the
+  clock does not matter to them:
 ${l.dayParts}
 - Recently relevant patterns: ${l.topObservations}
 - Yesterday, briefly: ${l.yesterdaySummaryLine}

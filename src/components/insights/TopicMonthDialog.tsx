@@ -39,7 +39,7 @@ function ChartTooltip({ active, payload }: TooltipPayload) {
         {!p.journaled ? "No entry" : p.mentioned ? `Came up${p.sentiment !== null ? ` · ${feeling(p.sentiment)}` : ""}` : "Didn't come up"}
         {p.mood !== null && <span className="text-fg-faint"> · mood {p.mood}</span>}
       </div>
-      {p.summary && <div className="mt-1 font-serif text-[14px] leading-snug text-fg">{p.summary}</div>}
+      {p.summary && <div className="mt-1 text-[13.5px] leading-snug text-fg">{p.summary}</div>}
       {p.journaled && <div className="mt-1 text-[11px] text-fg-faint">Tap to open the entry</div>}
     </div>
   );
@@ -131,7 +131,7 @@ export default function TopicMonthDialog({
             >
               &lsaquo;
             </button>
-            <span className="w-32 text-center font-serif text-[16px] text-fg">{monthLabel(month)}</span>
+            <span className="w-32 text-center text-[14.5px] font-medium text-fg">{monthLabel(month)}</span>
             <button
               onClick={() => setMonth(shiftMonth(month, 1))}
               disabled={month >= currentMonth}

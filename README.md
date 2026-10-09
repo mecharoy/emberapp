@@ -9,6 +9,8 @@ Android treats it as an update, not a new app.
 
 Jot quick notes during the day (from the app, the notification drawer or a Quick Settings tile). In the evening Elytra asks you a few questions about your day, then writes the entry for you on a handwritten page. Over time it picks up your moods, habits, sleep and the people and themes that keep coming up.
 
+Any time of day, the Chat tab is for talking about whatever is on your mind, with Elytra as a friend, a coach or a therapist-style listener (your pick). Chats stay out of the journal.
+
 The Windows app can also pair with your phone over the same Wi-Fi: your journal syncs between the two, and either one can chat through a local model (via [Ollama](https://ollama.com)) running on the computer instead of an API key.
 
 ## Download

@@ -474,7 +474,7 @@ export default function Settings({ active = true }: { active?: boolean }) {
           <span className="hint">Skipped once today&rsquo;s entry is written.</span>
         </Field>
         <div className="flex flex-col gap-1.5">
-          <span className="label">Your usual times</span>
+          <span className="label">Note reminder times</span>
           <div className="grid grid-cols-3 gap-3">
             {(
               [

@@ -563,6 +563,10 @@ html.capture-window #root {
   .btn-chip.danger:not(:disabled):hover {
     @apply border-danger/50 bg-danger-wash text-danger;
   }
+  /* The chip for the part of a page you are on (the Patterns tabs). */
+  .btn-chip.tab-on {
+    @apply border-moss bg-surface-high text-fg;
+  }
 
   /* The mood and energy slider (FaceSlider): a coloured track, a round thumb. */
   .face-slider {
@@ -599,7 +603,7 @@ html.capture-window #root {
 
   /* ---------- the dock ----------
      The app's one set of handles, along the front of the cabinet. A single
-     raised bar: the beetle at the left end, the four plates, the note button
+     raised bar: the beetle at the left end, the five plates, the note button
      at the right, each pair divided by a seam.
 
      Only the plate you are on says its name, and the name parts open when you
@@ -764,6 +768,25 @@ html.capture-window #root {
     max-height: 10px;
     margin-top: 4px;
     opacity: 1;
+  }
+
+  /* Five plates and the beetle have to fit a phone 360px wide. Narrower
+     plates on a phone, narrower still on the smallest ones — but every plate
+     is still one fixed width whichever is pressed, so nothing shuffles. */
+  .dock-row {
+    gap: 8px;
+    padding: 0 12px;
+  }
+  @media (max-width: 767px) {
+    .dock-tab { width: 46px; }
+    .dock-end { width: 40px; }
+  }
+  @media (max-width: 400px) {
+    .dock-row { gap: 6px; padding: 0 8px; }
+    .dock-tab { width: 44px; }
+    .dock-end { width: 38px; }
+    .perch-beetle { width: 50px; height: 50px; }
+    .perch-art { width: 34px !important; }
   }
 
   /* ---------- waiting ----------

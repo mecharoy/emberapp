@@ -23,7 +23,7 @@ export default function RoutineModule({
     <ModuleCard title="Daily routine">
       {s.latest && (
         <div className="mb-4 flex flex-wrap items-end gap-6">
-          <p className="max-w-md font-serif text-[18px] leading-snug text-fg">
+          <p className="text-[17px] font-medium leading-snug text-fg">
             Last full week, your routine held on about {Math.round(s.latest.score!)} of 7 days.
           </p>
           {scored.length >= 2 && <Sparkline values={scored.map((w) => w.score!)} width={120} height={28} />}
@@ -45,7 +45,7 @@ export default function RoutineModule({
       {s.finding && (
         <button
           onClick={() => onOpen("steadier weeks", s.finding!.dates)}
-          className="-mx-2 mt-3 w-full rounded-md px-2 py-2 text-left font-serif text-[16px] leading-snug text-fg transition-colors hover:bg-surface-high"
+          className="-mx-2 mt-3 w-full rounded-md px-2 py-2 text-left text-[15.5px] leading-snug text-fg transition-colors hover:bg-surface-high"
         >
           {s.finding.sentence}
         </button>

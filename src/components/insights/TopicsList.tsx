@@ -19,7 +19,7 @@ export default function TopicsList({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="font-serif text-[16px] text-fg">Topics</h3>
+      <h3 className="text-[15.5px] font-semibold text-fg">Topics</h3>
       {topics.length === 0 ? (
         <p className="hint max-w-xl">
           In the coach and therapist styles, Elytra keeps notes here on what you&rsquo;re working through, and picks them up in
@@ -30,13 +30,13 @@ export default function TopicsList({
           {topics.map((t) => (
             <li key={t.key} className="flex flex-col gap-1.5 py-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className={`font-serif text-[15.5px] ${t.status === "resolved" ? "text-fg-faint" : "text-fg"}`}>{t.title}</span>
+                <span className={`text-[15px] font-medium ${t.status === "resolved" ? "text-fg-faint" : "text-fg"}`}>{t.title}</span>
                 <span className="text-[12px] text-fg-faint">
                   {STATUS[t.status]}
                   {t.last_discussed && ` · last talked about ${t.last_discussed.slice(0, 10)}`}
                 </span>
               </div>
-              {t.notes && <p className="max-w-[70ch] text-[13.5px] leading-snug text-fg-dim">{t.notes}</p>}
+              {t.notes && <p className="text-[13.5px] leading-snug text-fg-dim">{t.notes}</p>}
               {t.next_step && t.status !== "resolved" && (
                 <p className="text-[12.5px] text-fg-faint">
                   <span className="italic">Next:</span> {t.next_step}

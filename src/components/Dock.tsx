@@ -2,17 +2,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Beetle from "../mascot/Beetle";
 import { claim, release, usePerchHidden } from "../mascot/pulse";
 import { companionLine, readDay } from "../mascot/companion";
+import { INTRODUCTION, TIPS, tipIndex } from "../mascot/tips";
+import { getSetting, setSetting } from "../db/settings";
+import { localDateKey } from "../time";
 
 /**
  * The dock — the whole of the app's navigation, on every window size and on
  * both platforms. There is no sidebar any more: a cabinet has one set of
  * handles along its front, not a list down its side.
  *
- * The bar holds the four plates, a seam, and the note button. The beetle is
+ * The bar holds the five plates, a seam, and the note button. The beetle is
  * NOT in the bar: it has a perch of its own (Perch, below), big enough that
  * its expressions can be seen — beside the bar on a phone, in the bottom-left
  * corner of a wide window. It is the app's one visible sign of life
- * (mascot/pulse.ts).
+ * (mascot/pulse.ts), and its card is where the app's tips live.
  *
  * Only the plate you are on says its name, and the name parts open downward
  * when you arrive. Every plate is the same width either way, so pressing one
@@ -23,18 +26,21 @@ import { companionLine, readDay } from "../mascot/companion";
 
 export const TABS = [
   { id: "today", label: "Today" },
+  { id: "chat", label: "Chat" },
   { id: "journal", label: "Journal" },
   { id: "insights", label: "Patterns" },
   { id: "settings", label: "Settings" },
 ];
 
 /**
- * Four plates from a field guide: one stroke weight, no fills except a
+ * Five plates from a field guide: one stroke weight, no fills except a
  * specimen, nothing that isn't drawn.
  *
- * Today is the wing cases parted — the day that is still open. Journal is the
- * stack of cards those days become. Patterns is the drawer they are sorted
- * into. Settings is two rules with pin heads for handles.
+ * Today is the wing cases parted — the day that is still open. Chat is a
+ * speech bubble with three dots in it (picked at 21px on 2026-10-09 over a
+ * plain bubble, a round one and two overlapping ones, which went muddy).
+ * Journal is the stack of cards those days become. Patterns is the drawer
+ * they are sorted into. Settings is two rules with pin heads for handles.
  *
  * Every one of these was drawn at 21px and looked at before it was kept,
  * because that is the only size they ship at and shapes lie at large sizes.
@@ -61,6 +67,15 @@ export function NavIcon({ id }: { id: string }) {
           <path d="M9.5 6.6c0-2.3 1.1-3.5 2.5-3.5s2.5 1.2 2.5 3.5z" />
           <path d="M11.2 7.3C7.6 7.6 4.6 9.8 4.6 13c0 3.8 2.9 6.7 5.7 7.4z" />
           <path d="M12.8 7.3c3.6.3 6.6 2.5 6.6 5.7 0 3.8-2.9 6.7-5.7 7.4z" />
+        </svg>
+      );
+    case "chat": // a speech bubble, three dots of talk in it
+      return (
+        <svg {...common}>
+          <path d="M6 5.4h12a2 2 0 0 1 2 2v7.2a2 2 0 0 1-2 2h-6.2l-4.3 3.4v-3.4H6a2 2 0 0 1-2-2V7.4a2 2 0 0 1 2-2z" />
+          <circle cx="8.6" cy="11" r="0.95" fill="currentColor" stroke="none" />
+          <circle cx="12" cy="11" r="0.95" fill="currentColor" stroke="none" />
+          <circle cx="15.4" cy="11" r="0.95" fill="currentColor" stroke="none" />
         </svg>
       );
     case "journal": // the stack of cards the days become
@@ -100,15 +115,17 @@ interface DockProps {
   hint?: string;
   /** Desktop only: what the phone link is doing. The beetle carries it. */
   status?: string;
+  /** Nothing else is on screen (setup, What's new): the beetle may say hello. */
+  greet?: boolean;
 }
 
-export default function Dock({ active, onSelect, onQuickNote, hint, status }: DockProps) {
+export default function Dock({ active, onSelect, onQuickNote, hint, status, greet = false }: DockProps) {
   return (
     <div
-      className="relative z-30 flex shrink-0 items-center justify-center gap-2 px-3"
+      className="dock-row relative z-30 flex shrink-0 items-center justify-center"
       style={{ height: "var(--nav-h)" }}
     >
-      <Perch active={active} onSelect={onSelect} status={status} />
+      <Perch active={active} onSelect={onSelect} status={status} greet={greet} />
       <nav className="dock" aria-label="Sections">
 
         <ul className="flex min-w-0 flex-1 items-stretch justify-center gap-0.5">
@@ -154,14 +171,33 @@ export default function Dock({ active, onSelect, onQuickNote, hint, status }: Do
   );
 }
 
+/** How many times "Next tip" was pressed; "" until the beetle has said hello. */
+async function tipOffset(): Promise<number> {
+  return Number(await getSetting("companion_tip")) || 0;
+}
+
 /**
  * The beetle's own place. Tap it and it says where the day has got to — read
  * straight out of the database, so there is nothing to wait for — with one
- * finding from Patterns under that. Tapping again, Escape, or a click
- * anywhere else puts the card away.
+ * finding from Patterns under that, and a tip on using the app (mascot/
+ * tips.ts). Tapping again, Escape, or a click anywhere else puts the card
+ * away.
+ *
+ * The first time the app is open with nothing else on screen, the beetle
+ * speaks up by itself, once, to say it can be tapped.
  */
-function Perch({ active, onSelect, status }: { active: string; onSelect: (tab: string) => void; status?: string }) {
-  const [said, setSaid] = useState<{ line: string; insight: string | null } | null>(null);
+function Perch({
+  active,
+  onSelect,
+  status,
+  greet,
+}: {
+  active: string;
+  onSelect: (tab: string) => void;
+  status?: string;
+  greet: boolean;
+}) {
+  const [said, setSaid] = useState<{ line: string; insight: string | null; tip: number } | null>(null);
   const companionRef = useRef<HTMLDivElement>(null);
   // While the chat composer's own beetle is on screen, this one steps aside.
   // It keeps its place in the row, so the dock never shifts under a finger.
@@ -177,9 +213,30 @@ function Perch({ active, onSelect, status }: { active: string; onSelect: (tab: s
       hush();
       return;
     }
-    const day = await readDay();
-    setSaid({ line: companionLine(day), insight: day.insight });
+    const [day, offset] = await Promise.all([readDay(), tipOffset()]);
+    setSaid({ line: companionLine(day), insight: day.insight, tip: tipIndex(localDateKey(), offset) });
   }
+
+  async function nextTip() {
+    const offset = (await tipOffset()) + 1;
+    await setSetting("companion_tip", String(offset));
+    setSaid((s) => (s ? { ...s, tip: tipIndex(localDateKey(), offset) } : s));
+  }
+
+  // Once per device, a moment after the app is clear: hello, and the first tip.
+  useEffect(() => {
+    if (!greet || away) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      if (cancelled || (await getSetting("companion_tip")) !== "") return;
+      await setSetting("companion_tip", "0");
+      setSaid({ line: INTRODUCTION, insight: null, tip: tipIndex(localDateKey(), 0) });
+    }, 1800);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [greet, away]);
 
   // Changing page puts it away. Without this it hangs over the next page,
   // still describing the moment you tapped it.
@@ -224,6 +281,13 @@ function Perch({ active, onSelect, status }: { active: string; onSelect: (tab: s
               )}
             </div>
           )}
+          <div className="mt-2.5 border-t border-line-strong pt-2.5">
+            <p className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-moss">Tip</p>
+            <p className="mt-1">{TIPS[said.tip]}</p>
+            <button onClick={nextTip} className="mt-1.5 text-[13px] text-moss underline underline-offset-2">
+              Next tip
+            </button>
+          </div>
         </div>
       )}
       <button

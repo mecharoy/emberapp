@@ -5,7 +5,7 @@ import { ModuleCard } from "./ModuleCard";
 function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="flex min-w-[110px] flex-col gap-1">
-      <span className="text-[12px] text-fg-faint">{label}</span>
+      <span className="text-[12.5px] font-medium text-fg-dim">{label}</span>
       <span className="font-serif text-[22px] leading-none text-fg">{value}</span>
       {note && <span className="text-[11px] text-fg-faint">{note}</span>}
     </div>
@@ -47,7 +47,7 @@ export default function SleepModule({
             <li key={f.sentence}>
               <button
                 onClick={() => onOpen(f)}
-                className="w-full rounded-md px-2 py-2 text-left font-serif text-[16px] leading-snug text-fg transition-colors hover:bg-surface-high"
+                className="w-full rounded-md px-2 py-2 text-left text-[15.5px] leading-snug text-fg transition-colors hover:bg-surface-high"
                 title="Open the entries behind this"
               >
                 {f.sentence}

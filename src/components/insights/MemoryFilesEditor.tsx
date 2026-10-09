@@ -49,7 +49,7 @@ export default function MemoryFilesEditor() {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="font-serif text-[16px] text-fg">What Elytra knows about you</h3>
+        <h3 className="text-[15.5px] font-semibold text-fg">What Elytra knows about you</h3>
         <div className="flex items-center gap-3">
           {state.message && <span className="text-[12.5px] text-fg-faint">{state.message}</span>}
           <button onClick={update} disabled={state.busy} className="btn-chip">
@@ -65,7 +65,7 @@ export default function MemoryFilesEditor() {
         {sections.map((s) => (
           <section key={s.key} className="flex flex-col gap-1.5 rounded-lg border border-line bg-surface/60 p-4">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="font-serif text-[15.5px] text-fg">
+              <span className="text-[15px] font-medium text-fg">
                 {s.title}
                 {s.edited && <span className="ml-2 font-sans text-[11.5px] text-fg-faint">edited by you</span>}
               </span>

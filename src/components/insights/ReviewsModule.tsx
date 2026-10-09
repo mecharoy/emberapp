@@ -26,10 +26,10 @@ function FormulationView({ json, onOpen }: { json: string | null; onOpen: (label
   const f = parseFormulation(json);
   if (!f) return null;
   return (
-    <div className="mt-1 grid max-w-3xl grid-cols-1 gap-x-8 gap-y-3 border-t border-line pt-3 md:grid-cols-2">
+    <div className="mt-1 grid grid-cols-1 gap-x-10 gap-y-4 border-t border-line pt-4 md:grid-cols-2 xl:grid-cols-3">
       {FORMULATION_KEYS.filter((k) => f[k].length > 0).map((k) => (
         <div key={k}>
-          <p className="text-[12.5px] text-fg">
+          <p className="text-[13.5px] font-semibold text-fg">
             {P_LABELS[k].title} <span className="text-fg-faint">— {P_LABELS[k].plain}</span>
           </p>
           <ul className="mt-1 flex flex-col gap-0.5">
@@ -101,8 +101,8 @@ function MemoryTab({ summaries, onOpen }: { summaries: MemorySummary[]; onOpen: 
                 </span>
               </button>
               {isOpen && s && (
-                <div className="fade-up flex max-w-[68ch] flex-col gap-2.5 pb-4">
-                  <p className="font-serif text-[16px] leading-[1.6] text-fg">{s.overview}</p>
+                <div className="fade-up flex flex-col gap-2.5 pb-4">
+                  <p className="text-[15.5px] leading-[1.7] text-fg">{s.overview}</p>
                   {SUMMARY_SECTIONS.filter(([k]) => (s[k] as string).trim()).map(([k, label]) => (
                     <p key={k} className="text-[13.5px] leading-relaxed text-fg-dim">
                       <span className="text-fg">{label}.</span> {s[k] as string}
@@ -356,7 +356,7 @@ export default function ReviewsModule({
                         </span>
                       </button>
                       {open && (
-                        <p className="fade-up max-w-[64ch] whitespace-pre-wrap pb-4 font-serif text-[16px] leading-[1.65] text-fg">
+                        <p className="fade-up whitespace-pre-wrap pb-4 text-[15.5px] leading-[1.7] text-fg xl:columns-2 xl:gap-x-12">
                           {r.letter}
                         </p>
                       )}
@@ -381,13 +381,13 @@ export default function ReviewsModule({
             const s = parseStats(m.stats);
             return (
               <article key={m.month} className="flex flex-col gap-3">
-                <h3 className="font-serif text-[17px] text-fg">
+                <h3 className="font-serif text-[24px] leading-tight text-fg">
                   {new Date(`${m.month}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
                 </h3>
                 {s && <MonthNumbers s={s} />}
-                <p className="max-w-[64ch] whitespace-pre-wrap font-serif text-[16px] leading-[1.65] text-fg">{m.letter}</p>
-                <p className="text-[13px] text-moss">
-                  <span className="font-serif italic">What changed:</span> {m.changed}
+                <p className="whitespace-pre-wrap text-[15.5px] leading-[1.7] text-fg xl:columns-2 xl:gap-x-12">{m.letter}</p>
+                <p className="text-[14px] leading-relaxed text-fg-dim">
+                  <span className="font-semibold text-moss">What changed:</span> {m.changed}
                 </p>
                 <FormulationView json={m.formulation} onOpen={(label, dates) => onOpen(`${m.month} · ${label}`, dates)} />
               </article>

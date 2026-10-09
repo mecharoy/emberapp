@@ -167,7 +167,9 @@ function dayPoints(c: CheckInSummary | null): [string, DayPoint][] {
  * lunch, the evening break and dinner. A skipped point merges the parts on
  * either side; a point that hasn't happened yet ends the day at "now" (or, for
  * an earlier day, at the end of that day). Blank points still split the day,
- * without a time. One numbered line per part.
+ * without a time — the check-in no longer asks for one, and a "(time not
+ * given)" on every line read to the model as a question still to ask. One
+ * numbered line per part.
  */
 export function formatDayParts(c: CheckInSummary | null, opts: { lookingBack?: boolean } = {}): string {
   const end = opts.lookingBack ? "the end of the day" : "now";
@@ -184,7 +186,7 @@ export function formatDayParts(c: CheckInSummary | null, opts: { lookingBack?: b
       notYet = label;
       break;
     }
-    const to = point ? `${label} (${point})` : `${label} (time not given)`;
+    const to = point ? `${label} (${point})` : label;
     parts.push(`${from} → ${to}${skipped.length ? ` — no ${skipped.join(" or ")} today` : ""}`);
     skipped = [];
     from = to;

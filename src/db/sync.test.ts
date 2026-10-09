@@ -116,6 +116,28 @@ async function restore(device: "pc" | "phone", file: string) {
 }
 
 describe("sync", () => {
+  it("carries a casual chat across, and its deletion after it", async () => {
+    run("phone", "INSERT INTO chat_threads (uid, title, approach, created_at, updated_at) VALUES ('t1', 'rough week', 'friend', '2026-10-01T12:00:00', '2026-10-01T12:01:00')");
+    run("phone", "INSERT INTO chat_messages (uid, thread_uid, role, content, created_at) VALUES ('m1', 't1', 'user', 'rough week', '2026-10-01T12:00:00')");
+    run("phone", "INSERT INTO chat_messages (uid, thread_uid, role, content, created_at) VALUES ('m2', 't1', 'assistant', 'Tell me.', '2026-10-01T12:01:00')");
+
+    await syncRound();
+
+    expect(all("pc", "SELECT uid, title, approach FROM chat_threads")).toEqual([{ uid: "t1", title: "rough week", approach: "friend" }]);
+    expect(all("pc", "SELECT uid, role, content FROM chat_messages ORDER BY created_at")).toEqual([
+      { uid: "m1", role: "user", content: "rough week" },
+      { uid: "m2", role: "assistant", content: "Tell me." },
+    ]);
+
+    await tick();
+    run("pc", "DELETE FROM chat_messages WHERE thread_uid = 't1'");
+    run("pc", "DELETE FROM chat_threads WHERE uid = 't1'");
+    await syncRound();
+
+    expect(all("phone", "SELECT uid FROM chat_threads")).toEqual([]);
+    expect(all("phone", "SELECT uid FROM chat_messages")).toEqual([]);
+  });
+
   it("copies each side's journal to the other, notes and messages under the right day", async () => {
     const pcSession = run("pc", "INSERT INTO sessions (date, status) VALUES ('2026-09-01', 'wrapped')").lastInsertRowid;
     run("pc", "INSERT INTO messages (session_id, role, content, created_at) VALUES (?, 'user', 'from pc', '2026-09-01T21:00:00')", pcSession);

@@ -43,6 +43,7 @@ export const SETTINGS_DEFAULTS: Record<SettingKey, string> = {
   update_checked_at: "",
   update_dismissed_version: "",
   last_seen_version: "",
+  companion_tip: "",
 };
 
 export async function getSetting(key: SettingKey): Promise<string> {

@@ -51,7 +51,7 @@ function ChartTooltip({ active, payload }: TooltipPayload) {
         )}
         {p.mood === null && p.energy === null && <span>no entry</span>}
       </div>
-      {p.summary && <div className="mt-1 font-serif text-[14px] leading-snug text-fg">{p.summary}</div>}
+      {p.summary && <div className="mt-1 text-[13.5px] leading-snug text-fg">{p.summary}</div>}
       {p.mood !== null && <div className="mt-1 text-[11px] text-fg-faint">Tap to open the entry</div>}
     </div>
   );

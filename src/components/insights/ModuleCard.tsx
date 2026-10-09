@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SCIENCE, UNLOCK } from "../../insights/science";
+import { chapterColor, useChapter } from "./chapters";
 
 /** Section titles (open and locked) → their entry in insights/science.ts. */
 const SCIENCE_BY_TITLE: Record<string, string> = {
@@ -68,10 +69,11 @@ function useInfo(title: string) {
 }
 
 /**
- * Shared chrome for a Patterns section. The heading is a small monospaced
- * label, the way a drawer is labelled; Instrument Serif is kept for the page
- * title and for the numbers themselves, so a heading never competes with the
- * data under it.
+ * Shared chrome for a Patterns section. The heading is Epilogue, semibold,
+ * beside a bar in its chapter's colour (chapters.tsx). It used to be the small
+ * monospaced drawer label, which, with serif sentences under it, made the page
+ * hard to read (2026-10-09). Instrument Serif stays for page titles and the
+ * big numbers.
  */
 export function ModuleCard({
   title,
@@ -83,10 +85,14 @@ export function ModuleCard({
   children: ReactNode;
 }) {
   const info = useInfo(title);
+  const chapter = useChapter();
   return (
     <section className="fade-up border-t border-line pt-5">
       <div ref={info.ref} className="relative mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h2 className="spec flex items-center text-fg">
+        <h2 className="flex items-center text-[16px] font-semibold leading-tight text-fg">
+          {chapter && (
+            <span className="mr-2.5 h-[18px] w-[3px] shrink-0 rounded-full" style={{ background: chapterColor(chapter) }} aria-hidden="true" />
+          )}
           {title}
           {info.button}
         </h2>
@@ -117,7 +123,7 @@ export function LockedModule({
     <section className="border-t border-dashed border-line-strong pt-5">
       <div ref={info.ref} className="relative flex items-center justify-between gap-3">
         {info.note}
-        <h2 className="spec flex items-center">
+        <h2 className="flex items-center text-[15px] font-semibold leading-tight text-fg-dim">
           {title}
           {info.button}
         </h2>

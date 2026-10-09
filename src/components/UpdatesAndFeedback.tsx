@@ -73,7 +73,7 @@ export default function UpdatesAndFeedback({
         <p className="text-[14px] text-fg">This is Elytra {version || "…"}.</p>
         <label className="flex items-center gap-3 text-[14.5px] text-fg">
           <input type="checkbox" checked={autoCheck} onChange={(e) => onAutoCheckChange(e.target.checked)} className="h-5 w-5 accent-moss" />
-          Look for a new version when Elytra opens
+          Look for a new version when Elytra opens, and every few hours while it runs
         </label>
         <div className="flex flex-wrap items-center gap-3">
           <button onClick={handleCheck} disabled={check.busy || !sourceValid} className="btn-subtle">

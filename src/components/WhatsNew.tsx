@@ -10,7 +10,14 @@ import type { FirstRunScreen } from "../install";
  * release. On the first-run screens it only notes the version, so a new
  * install never opens with a list of changes.
  */
-export default function WhatsNew({ screen }: { screen: FirstRunScreen | null }) {
+export default function WhatsNew({
+  screen,
+  onSettled,
+}: {
+  screen: FirstRunScreen | null;
+  /** Called once nothing is showing: no card was due, or it was closed. */
+  onSettled?: () => void;
+}) {
   const [card, setCard] = useState<{ version: string; items: Highlight[] } | null>(null);
 
   useEffect(() => {
@@ -22,8 +29,10 @@ export default function WhatsNew({ screen }: { screen: FirstRunScreen | null }) 
         const decision = decideWhatsNew({ seen, current, fresh: screen !== "none" });
         if (decision === "remember") await setSetting("last_seen_version", current);
         if (decision === "show" && !cancelled) setCard({ version: current, items: notesFor(current) });
+        else if (!cancelled && screen === "none") onSettled?.();
       } catch {
         // Not worth interrupting anyone over.
+        if (!cancelled && screen === "none") onSettled?.();
       }
     })();
     return () => {
@@ -34,6 +43,7 @@ export default function WhatsNew({ screen }: { screen: FirstRunScreen | null }) 
   function close() {
     if (card) setSetting("last_seen_version", card.version).catch(() => {});
     setCard(null);
+    onSettled?.();
   }
 
   useBackButton(card !== null, close);

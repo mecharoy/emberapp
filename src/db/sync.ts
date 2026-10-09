@@ -60,7 +60,7 @@ interface TableSpec {
   session?: "required" | "optional";
 }
 
-// Must match the tables and columns in 0011_sync.sql, 0013 and 0014. Sessions come first so
+// Must match the tables and columns in 0011_sync.sql, 0013, 0014 and 0015. Sessions come first so
 // a batch creates them before anything that points at them.
 const TABLES: Record<string, TableSpec> = {
   sessions: { pk: ["uid"], cols: ["date", "started_at", "ended_at", "status"] },
@@ -91,6 +91,8 @@ const TABLES: Record<string, TableSpec> = {
   topics: { pk: ["key"], cols: ["title", "status", "notes", "next_step", "first_seen", "last_discussed", "updated_at"] },
   habit_prefs: { pk: ["key"], cols: ["dismissed", "direction"] },
   assessments: { pk: ["instrument", "date"], cols: ["answers", "score", "difficulty", "created_at"] },
+  chat_threads: { pk: ["uid"], cols: ["title", "approach", "created_at", "updated_at"] },
+  chat_messages: { pk: ["uid"], cols: ["thread_uid", "role", "content", "created_at"] },
   settings: { pk: ["key"], cols: ["value"] },
 };
 

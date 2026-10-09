@@ -88,7 +88,7 @@ export default function SuggestionsModule({
             return (
               <li key={s.title} className="flex flex-col gap-2 rounded-lg border border-line bg-surface/60 p-4">
                 <span className="text-[11.5px] uppercase tracking-wide text-fg-faint">{KIND_LABEL[s.kind]}</span>
-                <span className="font-serif text-[16px] leading-snug text-fg">{s.title}</span>
+                <span className="text-[15.5px] font-semibold leading-snug text-fg">{s.title}</span>
                 <span className="text-[13px] leading-snug text-fg-dim">{s.why}</span>
                 {already ? (
                   <span className="text-[12.5px] text-moss">In your habits</span>

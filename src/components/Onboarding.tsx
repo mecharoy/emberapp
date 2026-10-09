@@ -10,13 +10,12 @@ import { setApiKey, setCloudApiKey, setOpenAiKey } from "../secrets";
 import { PROVIDER_OPTIONS, isKnownProvider } from "../ai/providerList";
 import { DEFAULT_OPENAI_MODEL, OPENAI_KEYS_URL } from "../ai/providers/openai";
 import { ensureNotificationPermission } from "../scheduler";
-import { SCIENCE_HIGHLIGHTS } from "../insights/science";
 import { claimJournal } from "../install";
 import RestoreBackup from "./RestoreBackup";
 import StylePicker from "./StylePicker";
 import { DEFAULT_STYLE, type ConversationStyle } from "../ai/prompts/style";
 import { localStamp } from "../time";
-import Beetle from "../mascot/Beetle";
+import Tour from "./Tour";
 
 const PROVIDERS = PROVIDER_OPTIONS;
 
@@ -150,7 +149,6 @@ export function IntroFilm({ onDone }: { onDone: () => void }) {
 export default function Onboarding({ onDone, welcomeBack = false }: { onDone: () => void; welcomeBack?: boolean }) {
   const [name, setName] = useState("");
   const [time, setTime] = useState("21:30");
-  const [usual, setUsual] = useState({ lunch: "13:00", break: "17:30", dinner: "20:30" });
   const [provider, setProvider] = useState<string>("cloud");
   const [presetId, setPresetId] = useState(CLOUD_PRESETS[0].id);
   const [key, setKey] = useState("");
@@ -174,7 +172,6 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
       const restoredPreset = presetForBaseUrl(s.cloud_api_base) ?? CLOUD_PRESETS[0];
       setName(s.user_name);
       setTime(s.reminder_time);
-      setUsual({ lunch: s.usual_lunch, break: s.usual_break, dinner: s.usual_dinner });
       setProvider(isKnownProvider(s.provider) ? s.provider : "cloud");
       setPresetId(restoredPreset.id);
       setRestored({ provider: s.provider, presetId: restoredPreset.id });
@@ -190,9 +187,6 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
       await Promise.all([
         setSetting("user_name", name.trim()),
         setSetting("reminder_time", time),
-        setSetting("usual_lunch", usual.lunch),
-        setSetting("usual_break", usual.break),
-        setSetting("usual_dinner", usual.dinner),
         setSetting("provider", provider),
         ...(provider === "cloud"
           ? [
@@ -231,9 +225,6 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
     await Promise.all([
       setSetting("user_name", name.trim()),
       setSetting("reminder_time", time),
-      setSetting("usual_lunch", usual.lunch),
-      setSetting("usual_break", usual.break),
-      setSetting("usual_dinner", usual.dinner),
       setSetting("provider", provider),
       ...(provider === "cloud"
         ? [
@@ -280,43 +271,17 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
     return (
       <div className="fixed inset-0 z-50 overflow-y-auto bg-ground">
         {filmPlaying && <IntroFilm onDone={() => setFilmPlaying(false)} />}
-        <div key="intro" className="page mx-auto flex min-h-full max-w-[600px] flex-col px-6 pb-10 pt-12">
-          <div className="flex items-center gap-4">
-            <Beetle size={68} state="idle" />
-            <div>
-              <Wordmark size="large" mark={false} />
-              <p className="spec mt-3">Write it down. Let it open.</p>
-            </div>
-          </div>
-          <span className="seam-rule mt-7" aria-hidden="true" />
-
-          <h1 className="mt-7 font-serif text-[30px] leading-[1.1] tracking-[-0.012em] text-fg">
-            Your days, read closely.
-          </h1>
-          <p className="mt-2.5 text-[15px] leading-relaxed text-fg-dim">
-            You write a line when something happens. In the evening Elytra asks about it, then writes the day up
-            and keeps what it learns. Everything below is where the reading comes from.
-          </p>
-
-          <ul className="mt-6 flex flex-col divide-y divide-line border-y border-line">
-            {SCIENCE_HIGHLIGHTS.map((h) => (
-              <li key={h.title} className="flex flex-col gap-1 py-3.5">
-                <span className="spec-strong">{h.title}</span>
-                <span className="text-[13.5px] leading-snug text-fg-dim">{h.line}</span>
-              </li>
-            ))}
-          </ul>
-
-          <button onClick={() => setStep("setup")} className="btn-primary mt-8">
-            Set it up
-          </button>
-          <div className="mt-2 flex flex-col text-center">
-            <RestoreBackup label="Been here before? Restore a backup" buttonClass="btn-ghost" />
-          </div>
-          <p className="hint text-center">
-            Elytra on a computer too? Pair them later in Settings &rsaquo; Sync with computer.
-          </p>
-        </div>
+        <Tour
+          noteHow="Tap the + at the end of the dock, any time."
+          device="phone"
+          onDone={() => setStep("setup")}
+          footer={
+            <>
+              <RestoreBackup label="Been here before? Restore a backup" buttonClass="btn-ghost" />
+              <p className="hint">Elytra on a computer too? Pair them later in Settings &rsaquo; Sync with computer.</p>
+            </>
+          }
+        />
       </div>
     );
   }
@@ -395,20 +360,9 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
             <Wordmark size="large" />
             <p className="spec mt-4">Write it down. Let it open.</p>
 
-            <ol className="mt-7 flex flex-col gap-4 border-y border-line py-5 text-[15px] leading-relaxed text-fg-dim">
-              <li className="flex gap-4">
-                <span className="mt-[3px] w-5 shrink-0 font-mono text-[11px] tracking-[0.1em] text-moss">01</span>
-                <span>Tap + Note during the day and write the line. It takes five seconds.</span>
-              </li>
-              <li className="flex gap-4">
-                <span className="mt-[3px] w-5 shrink-0 font-mono text-[11px] tracking-[0.1em] text-moss">02</span>
-                <span>In the evening Elytra asks about those lines. You answer; it does the writing.</span>
-              </li>
-              <li className="flex gap-4">
-                <span className="mt-[3px] w-5 shrink-0 font-mono text-[11px] tracking-[0.1em] text-moss">03</span>
-                <span>The day goes down by hand on the paper you choose, and what keeps coming back shows up under Patterns.</span>
-              </li>
-            </ol>
+            <p className="mt-5 border-b border-line pb-5 text-[15px] leading-relaxed text-fg-dim">
+              A minute of setup. All of it can be changed later in Settings.
+            </p>
           </>
         )}
 
@@ -424,29 +378,6 @@ export default function Onboarding({ onDone, welcomeBack = false }: { onDone: ()
             </label>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <span className="label">When do you usually have these?</span>
-            <div className="grid grid-cols-3 gap-3">
-              {(
-                [
-                  ["lunch", "Lunch"],
-                  ["break", "A break"],
-                  ["dinner", "Dinner"],
-                ] as const
-              ).map(([k, label]) => (
-                <label key={k} className="flex flex-col gap-1 text-[12px] text-fg-faint">
-                  {label}
-                  <input
-                    type="time"
-                    className="input w-full"
-                    value={usual[k]}
-                    onChange={(e) => setUsual((u) => ({ ...u, [k]: e.target.value }))}
-                  />
-                </label>
-              ))}
-            </div>
-            <span className="hint">Elytra reminds you at these times to jot down what you did. You can turn this off in Settings.</span>
-          </div>
 
           <div className="flex flex-col gap-2">
             <span className="label">AI provider</span>

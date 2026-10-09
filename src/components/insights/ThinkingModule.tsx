@@ -30,7 +30,7 @@ export default function ThinkingModule({
                 className="flex w-full flex-wrap items-baseline justify-between gap-x-4 text-left"
                 title="Open the entries behind this"
               >
-                <span className="font-serif text-[17px] text-fg">{s.trap.name}</span>
+                <span className="text-[15.5px] font-semibold text-fg">{s.trap.name}</span>
                 <span className="text-[12px] text-fg-faint">
                   {s.days} days · {s.recentDays} in the last 8 weeks
                   {s.themes.length > 0 ? ` · often with ${s.themes.join(", ")}` : ""}
@@ -42,7 +42,7 @@ export default function ThinkingModule({
                   <li key={`${e.date}-${e.quote}`}>
                     <button
                       onClick={() => onOpen(`thinking: ${s.trap.name}`, [e.date])}
-                      className="text-left font-serif text-[14.5px] italic leading-snug text-fg-dim hover:text-fg"
+                      className="text-left text-[14.5px] italic leading-snug text-fg-dim hover:text-fg"
                     >
                       &ldquo;{e.quote}&rdquo; <span className="not-italic text-[11.5px] text-fg-faint">{shortDate(e.date)}</span>
                     </button>

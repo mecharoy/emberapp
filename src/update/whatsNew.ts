@@ -9,6 +9,24 @@ export interface Highlight {
 }
 
 export const RELEASE_NOTES: Record<string, Highlight[]> = {
+  "2.1.0": [
+    {
+      title: "Chat, any time",
+      text: "A new Chat page in the dock: talk about anything, whenever you like, apart from your journal. Pick how Elytra talks: like a friend, a coach or a therapist.",
+    },
+    {
+      title: "A quieter Today",
+      text: "The check-in is folded away until you want it, and it no longer asks when you had lunch, a break or dinner.",
+    },
+    {
+      title: "Patterns, one part at a time",
+      text: "An overview first, with what stands out this week. Mood, your days, body, mind and letters each open on their own tab. Nothing was taken out.",
+    },
+    {
+      title: "Tips from the beetle",
+      text: "Tap the beetle for a tip on what to try next. New here? The first-run tour now shows where everything lives.",
+    },
+  ],
   "2.0.0": [
     {
       title: "Ember is now Elytra",

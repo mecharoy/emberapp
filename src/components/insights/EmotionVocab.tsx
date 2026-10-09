@@ -71,14 +71,14 @@ export default function EmotionVocab({ rows, todayKey }: { rows: DayRow[]; today
       ) : counts.length === 0 ? (
         <p className="hint">No feelings in this stretch yet. They build up as entries are saved.</p>
       ) : (
-        <ul className="flex max-w-2xl flex-col gap-1.5">
+        <ul className="flex flex-col gap-1.5">
           {counts.map((c, i) => (
             <li
               key={c.emotion}
               className="flex items-center gap-3 text-[13px]"
               title={`${c.emotion}: ${c.count} day${c.count === 1 ? "" : "s"}`}
             >
-              <span className="w-28 shrink-0 truncate font-serif text-[15px] text-fg">{c.emotion}</span>
+              <span className="w-32 shrink-0 truncate text-[14.5px] font-medium text-fg">{c.emotion}</span>
               <span className="flex flex-1 items-center gap-2">
                 <span
                   className="fade-up h-2 rounded-r-[4px]"

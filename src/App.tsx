@@ -9,6 +9,7 @@ import Today from "./windows/Today";
 import Journal from "./windows/Journal";
 import Insights from "./windows/Insights";
 import Settings from "./windows/Settings";
+import Chat from "./windows/Chat";
 import type { JournalFocus } from "./windows/navigation";
 import { firstRunScreen, type FirstRunScreen } from "./install";
 import { localDateKey } from "./time";
@@ -35,6 +36,8 @@ function App() {
   const [todayVersion, setTodayVersion] = useState(0);
   const [firstRun, setFirstRun] = useState<FirstRunScreen | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
+  // Setup and What's new are out of the way: the beetle may say hello.
+  const [clear, setClear] = useState(false);
   const liveDayRef = useRef(liveDay);
   liveDayRef.current = liveDay;
   const activeRef = useRef(active);
@@ -135,6 +138,16 @@ function App() {
             onQuickNote={() => setNoteOpen(true)}
           />
         </div>
+        {/* The casual chat: talk about anything, any time, apart from the day.
+            Kept mounted once opened, like the other pages, so a reply still
+            arriving is never cut off by looking elsewhere. */}
+        {visited.has("chat") && (
+          <div className={active === "chat" ? "page absolute inset-0" : "hidden"}>
+            <div className="mx-auto h-full w-full max-w-3xl">
+              <Chat />
+            </div>
+          </div>
+        )}
         {visited.has("journal") && (
           <div className={active === "journal" ? "page absolute inset-0" : "hidden"}>
             <Journal
@@ -159,13 +172,18 @@ function App() {
           </div>
         )}
       </main>
-      <Dock active={active} onSelect={handleSelect} onQuickNote={() => setNoteOpen(true)} />
+      <Dock
+        active={active}
+        onSelect={handleSelect}
+        onQuickNote={() => setNoteOpen(true)}
+        greet={clear && firstRun === "none"}
+      />
       <QuickNote open={noteOpen} onClose={() => setNoteOpen(false)} />
       <NoteSheetBack open={noteOpen} onClose={() => setNoteOpen(false)} />
       {(firstRun === "setup" || firstRun === "welcome-back") && (
         <Onboarding welcomeBack={firstRun === "welcome-back"} onDone={() => setFirstRun("none")} />
       )}
-      <WhatsNew screen={firstRun} />
+      <WhatsNew screen={firstRun} onSettled={() => setClear(true)} />
     </div>
   );
 }

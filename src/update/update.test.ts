@@ -4,7 +4,16 @@ vi.mock("@tauri-apps/plugin-http", () => ({ fetch: vi.fn() }));
 vi.mock("@tauri-apps/api/app", () => ({ getVersion: vi.fn() }));
 vi.mock("../db/settings", () => ({ getSetting: vi.fn(), setSetting: vi.fn() }));
 
-import { compareVersions, manifestUrlFor, parseManifest, parseRepo, platformKey } from "./update";
+import {
+  compareVersions,
+  manifestUrlFor,
+  parseManifest,
+  parseRepo,
+  platformKey,
+  RECHECK_EVERY_MS,
+  RETRY_AFTER_MS,
+  updateCheckDue,
+} from "./update";
 
 describe("sources", () => {
   it("turns a repository link into its latest release's manifest", () => {
@@ -97,5 +106,25 @@ describe("platformKey", () => {
     expect(platformKey("Mozilla/5.0 (X11; Linux x86_64)")).toBe("linux-x86_64");
     expect(platformKey("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")).toBeNull();
     expect(platformKey("Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36")).toBe("android-aarch64");
+  });
+});
+
+describe("updateCheckDue", () => {
+  const now = Date.parse("2026-10-09T18:00:00.000Z");
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+
+  it("looks again once the last look is six hours old", () => {
+    expect(updateCheckDue(ago(RECHECK_EVERY_MS - 1000), 0, now)).toBe(false);
+    expect(updateCheckDue(ago(RECHECK_EVERY_MS), 0, now)).toBe(true);
+  });
+
+  it("looks when it has never looked, or the stamp is unreadable", () => {
+    expect(updateCheckDue("", 0, now)).toBe(true);
+    expect(updateCheckDue("garbage", 0, now)).toBe(true);
+  });
+
+  it("waits half an hour after any try, so being offline is not a request on every focus", () => {
+    expect(updateCheckDue("", now - RETRY_AFTER_MS + 1000, now)).toBe(false);
+    expect(updateCheckDue("", now - RETRY_AFTER_MS, now)).toBe(true);
   });
 });

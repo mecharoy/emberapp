@@ -1,25 +1,60 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getSetting, setSetting } from "../db/settings";
-import { checkForUpdate, type Release } from "../update/update";
+import { checkForUpdate, updateCheckDue, type Release } from "../update/update";
+
+/** How often the banner asks itself whether a look is due. Asking reads two
+ *  settings; only a due look reaches GitHub (update.ts, updateCheckDue). */
+const ASK_EVERY_MS = 30 * 60 * 1000;
 
 /**
- * Looks for a newer release once when Elytra opens and, only if there is one,
- * shows a card at the top. Download opens the installer in the browser; Later
- * hides that version until the next one.
+ * Looks for a newer release when Elytra opens, and keeps looking while it
+ * runs: whenever the window comes back into view, and every half hour, it
+ * checks again if the last successful look is six hours old. Only if there is
+ * a newer release does it show a card at the top. Download opens the
+ * installer in the browser; Later hides that version until the next one.
+ *
+ * The keeping-on matters on a computer, where Elytra sits in the tray for
+ * days; a phone mostly reopens it fresh, which checks anyway.
+ * The switch in Settings > Updates & feedback turns all of it off.
  */
 export default function UpdateBanner() {
   const [release, setRelease] = useState<Release | null>(null);
+  const shownRef = useRef(false);
+  shownRef.current = release !== null;
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      if ((await getSetting("update_auto_check")) !== "1") return;
-      const result = await checkForUpdate(false);
-      if (!cancelled && result.status === "available") setRelease(result.release);
-    })();
+    let looking = false;
+    let lastTry = 0;
+    const look = async (atLaunch: boolean) => {
+      if (looking || shownRef.current) return;
+      looking = true;
+      try {
+        if ((await getSetting("update_auto_check")) !== "1") return;
+        const now = Date.now();
+        if (!atLaunch && !updateCheckDue(await getSetting("update_checked_at"), lastTry, now)) return;
+        lastTry = now;
+        const result = await checkForUpdate(false);
+        if (!cancelled && result.status === "available") setRelease(result.release);
+      } catch {
+        // Not worth interrupting anyone over.
+      } finally {
+        looking = false;
+      }
+    };
+    void look(true);
+    const timer = setInterval(() => void look(false), ASK_EVERY_MS);
+    const onBack = () => {
+      if (document.visibilityState === "visible") void look(false);
+    };
+    document.addEventListener("visibilitychange", onBack);
+    window.addEventListener("focus", onBack);
     return () => {
       cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onBack);
+      window.removeEventListener("focus", onBack);
     };
   }, []);
 

@@ -164,6 +164,8 @@ export async function deleteEverything(): Promise<void> {
     "memory_files",
     "sessions",
     "reminders",
+    "chat_messages",
+    "chat_threads",
   ]) {
     await db.execute(`DELETE FROM ${table}`);
   }

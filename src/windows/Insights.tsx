@@ -63,6 +63,10 @@ import EmotionVocab from "../components/insights/EmotionVocab";
 import ReviewsModule from "../components/insights/ReviewsModule";
 import { useMascotClaim } from "../mascot/pulse";
 import Recap from "../components/insights/Recap";
+import { buildRecap, type Slide } from "../insights/recap";
+import WeekStrip from "../components/insights/WeekStrip";
+import { ChapterContext, ChapterIcon, chapterColor, type ChapterId } from "../components/insights/chapters";
+import { insightLines } from "../mascot/companion";
 
 interface Loaded {
   metrics: DayMetrics[];
@@ -83,6 +87,17 @@ interface Loaded {
   patterns: Patterns | null;
   topics: Topic[];
 }
+
+/** Which chapter each kind of recap fact belongs to, for its icon and colour. */
+const NOTICED_CHAPTER: Partial<Record<Slide["kind"], ChapterId>> = {
+  mood: "mood",
+  bestDay: "mood",
+  theme: "days",
+  people: "days",
+  lift: "days",
+  sleep: "body",
+  feelings: "mind",
+};
 
 const plural = (n: number) => `${n} entr${n === 1 ? "y" : "ies"}`;
 
@@ -128,6 +143,12 @@ export default function Insights({
   });
   const [confirmReanalyse, setConfirmReanalyse] = useState(false);
   const [recapOpen, setRecapOpen] = useState(false);
+  // One chapter at a time. People said the page was too much to take in when
+  // every chapter was stacked down one long scroll; now the Overview says
+  // what matters and each chapter opens on its own. Nothing was taken out.
+  const [view, setView] = useState("overview");
+  const [showGathering, setShowGathering] = useState(false);
+  const topRef = useRef<HTMLDivElement>(null);
   // The theme or person opened day by day from its small chart.
   const [expanded, setExpanded] = useState<{ group: "themes" | "people"; item: KeyedSeries } | null>(null);
   const today = localDateKey();
@@ -227,6 +248,29 @@ export default function Insights({
   }
 
   const rows = useMemo(() => (data ? parseDayRows(data.metrics) : []), [data]);
+  // A few things the journal shows, counted here (the recap's facts as
+  // sentences, the same ones the beetle passes on). The week when it has
+  // enough in it, otherwise the month.
+  const noticed = useMemo(() => {
+    if (!data) return { items: [] as { chapter: ChapterId; text: string }[], span: "this week" };
+    const base = {
+      today: localDateKey(),
+      rows,
+      entries: data.entries,
+      checkins: data.checkins,
+      captureTimes: data.captureTimes,
+      streak: data.streak,
+      suggestions: [],
+    };
+    const itemsFor = (period: "week" | "month") =>
+      buildRecap({ ...base, period }).flatMap((slide) => {
+        const chapter = NOTICED_CHAPTER[slide.kind];
+        return chapter ? insightLines([slide], period).map((text) => ({ chapter, text })) : [];
+      });
+    const week = itemsFor("week");
+    if (week.length >= 2) return { items: week.slice(0, 4), span: "this week" };
+    return { items: itemsFor("month").slice(0, 4), span: "this month" };
+  }, [data, rows]);
   const entryDates = useMemo(() => (data ? data.entries.map((e) => e.date) : []), [data]);
   const themes = useMemo(() => themeStats(rows, today), [rows, today]);
   const people = useMemo(() => peopleStats(rows, today), [rows, today]);
@@ -530,24 +574,26 @@ export default function Insights({
     { id: "mind", title: "Mind", lead: "The words you use, and the stories you tell yourself.", body: mindSections },
     { id: "letters", title: "Letters & ideas", lead: "What Elytra has written back to you.", body: letterSections },
   ].filter((c) => c.body.length > 0);
-  if (gathering.length > 0) {
-    chapters.push({
-      id: "gathering",
-      title: "Still gathering",
-      lead: "These open as you write up more days.",
-      body: [
-        <div key="grid" className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
-          {gathering}
-        </div>,
-      ],
-    });
-  }
 
-  const jumpTo = (id: string) =>
-    document.getElementById(`patterns-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const current = chapters.find((c) => c.id === view);
+  const openView = (id: string) => {
+    setView(id);
+    topRef.current?.scrollIntoView({ block: "start" });
+  };
+  const tabs = [{ id: "overview", title: "Overview" }, ...chapters];
+  const shown = current?.id ?? "overview";
+
+  // For the number tiles: the last two weeks of ratings, and which of the
+  // last seven days were written.
+  const twoWeeks = rows.filter((r) => r.date > addDays(today, -14) && r.date <= today);
+  const trend = {
+    mood: twoWeeks.flatMap((r) => (r.mood === null ? [] : [r.mood])),
+    energy: twoWeeks.flatMap((r) => (r.energy === null ? [] : [r.energy])),
+  };
+  const week = Array.from({ length: 7 }, (_, i) => entryDateSet.has(addDays(today, i - 6)));
 
   return (
-    <div className="flex flex-col gap-8 px-5 pb-16 pt-4">
+    <div ref={topRef} className="flex flex-col gap-7 px-5 pb-16 pt-4">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="page-title">Patterns</h1>
@@ -571,53 +617,163 @@ export default function Insights({
         />
       )}
 
-      {/* The one thing to press on this page. */}
-      <section className="fade-up flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-2xl bg-speak px-5 py-5 text-speak-fg shadow-[var(--lift-2)] sm:px-6">
-        <div className="min-w-0">
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-speak-fg/75">Recap</p>
-          <p className="mt-1.5 font-serif text-[27px] leading-[1.1] tracking-[-0.01em]">Your week, in a minute.</p>
-          <p className="mt-1.5 text-[14px] leading-snug text-speak-fg/80">
-            {n === 0
-              ? "Write up a day first, and there will be something to play."
-              : "The highlights, one at a time. Nothing leaves this device."}
-          </p>
-        </div>
-        <button
-          onClick={() => setRecapOpen(true)}
-          disabled={n === 0}
-          className="inline-flex min-h-[46px] shrink-0 items-center gap-2.5 rounded-full bg-speak-fg px-5 text-[15px] font-medium text-speak transition-transform duration-150 active:scale-[0.97] disabled:opacity-50"
-        >
-          <svg viewBox="0 0 12 14" className="h-3.5 w-3" aria-hidden="true">
-            <path d="M1 1.2v11.6c0 .5.6.8 1 .5l9-5.8a.6.6 0 0 0 0-1L2 .7c-.4-.3-1 0-1 .5Z" fill="currentColor" />
-          </svg>
-          Play
-        </button>
-      </section>
+      {/* One chapter at a time. The tabs stay in reach while a chapter
+          scrolls; each wears its chapter's colour. */}
+      <nav
+        aria-label="Patterns sections"
+        role="tablist"
+        className="sticky top-0 z-20 -mx-5 -mt-2 flex gap-1.5 overflow-x-auto [scrollbar-width:none] border-b border-line bg-ground/95 px-5 py-2.5"
+      >
+        {tabs.map((c) => (
+          <button
+            key={c.id}
+            role="tab"
+            aria-selected={shown === c.id}
+            onClick={() => openView(c.id)}
+            className={`btn-chip shrink-0 gap-2 !text-[13.5px] ${shown === c.id ? "tab-on" : ""}`}
+          >
+            {c.id !== "overview" && (
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: chapterColor(c.id as ChapterId) }} aria-hidden="true" />
+            )}
+            {c.title}
+          </button>
+        ))}
+      </nav>
 
-      <VitalsRow vitals={vitals} streak={data.streak} />
-
-      {chapters.length > 1 && (
-        <nav
-          aria-label="Sections"
-          className="sticky top-0 z-20 -mx-5 flex gap-1.5 overflow-x-auto [scrollbar-width:none] border-b border-line bg-ground/95 px-5 py-2.5"
-        >
-          {chapters.map((c) => (
-            <button key={c.id} onClick={() => jumpTo(c.id)} className="btn-chip shrink-0">
-              {c.title}
+      {!current ? (
+        <>
+          {/* The one thing to press on this page. */}
+          <section className="fade-up flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-2xl bg-speak px-5 py-5 text-speak-fg shadow-[var(--lift-2)] sm:px-6">
+            <div className="min-w-0">
+              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-speak-fg/75">Recap</p>
+              <p className="mt-1.5 font-serif text-[27px] leading-[1.1] tracking-[-0.01em]">Your week, in a minute.</p>
+              <p className="mt-1.5 text-[14px] leading-snug text-speak-fg/80">
+                {n === 0
+                  ? "Write up a day first, and there will be something to play."
+                  : "The highlights, one at a time. Nothing leaves this device."}
+              </p>
+            </div>
+            <button
+              onClick={() => setRecapOpen(true)}
+              disabled={n === 0}
+              className="inline-flex min-h-[46px] shrink-0 items-center gap-2.5 rounded-full bg-speak-fg px-5 text-[15px] font-medium text-speak transition-transform duration-150 active:scale-[0.97] disabled:opacity-50"
+            >
+              <svg viewBox="0 0 12 14" className="h-3.5 w-3" aria-hidden="true">
+                <path d="M1 1.2v11.6c0 .5.6.8 1 .5l9-5.8a.6.6 0 0 0 0-1L2 .7c-.4-.3-1 0-1 .5Z" fill="currentColor" />
+              </svg>
+              Play
             </button>
-          ))}
-        </nav>
-      )}
+          </section>
 
-      {chapters.map((c) => (
-        <section key={c.id} id={`patterns-${c.id}`} className="flex scroll-mt-16 flex-col gap-9 pt-2">
-          <header>
-            <h2 className="font-serif text-[30px] leading-[1.1] tracking-[-0.015em] text-fg">{c.title}</h2>
-            <p className="mt-1 text-[14.5px] leading-snug text-fg-dim">{c.lead}</p>
+          <VitalsRow vitals={vitals} streak={data.streak} trend={trend} week={week} />
+
+          {n > 0 && (
+            <section className="fade-up flex flex-col gap-3">
+              <h2 className="text-[16px] font-semibold text-fg">Your last seven days</h2>
+              <WeekStrip rows={rows} entries={data.entries} today={today} onOpen={openEntry} />
+            </section>
+          )}
+
+          {noticed.items.length > 0 && (
+            <section className="fade-up flex flex-col gap-3">
+              <h2 className="text-[16px] font-semibold text-fg">Noticed {noticed.span}</h2>
+              <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+                {noticed.items.map((it) => (
+                  <li key={it.text}>
+                    <button
+                      onClick={() => openView(it.chapter)}
+                      className="flex h-full w-full items-start gap-3 rounded-[14px] border border-line bg-surface px-4 py-3.5 text-left transition-colors hover:bg-surface-high"
+                      title="Open this part of Patterns"
+                    >
+                      <span
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                        style={{ background: `${chapterColor(it.chapter)}26` }}
+                        aria-hidden="true"
+                      >
+                        <ChapterIcon id={it.chapter} size={18} />
+                      </span>
+                      <span className="pt-1.5 text-[15px] leading-snug text-fg">{it.text}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* Where everything else is: one card per chapter, each opened on its own. */}
+          {chapters.length > 0 && (
+            <section className="fade-up flex flex-col gap-3">
+              <h2 className="text-[16px] font-semibold text-fg">Look closer</h2>
+              <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                {chapters.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      onClick={() => openView(c.id)}
+                      className="relative flex h-full w-full flex-col gap-2 overflow-hidden rounded-[14px] border border-line bg-surface px-4 pb-4 pt-4 text-left transition-colors hover:bg-surface-high"
+                    >
+                      <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: chapterColor(c.id as ChapterId) }} aria-hidden="true" />
+                      <span className="flex items-center gap-3">
+                        <span
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                          style={{ background: `${chapterColor(c.id as ChapterId)}26` }}
+                          aria-hidden="true"
+                        >
+                          <ChapterIcon id={c.id as ChapterId} size={20} />
+                        </span>
+                        <span className="font-serif text-[23px] leading-tight text-fg">{c.title}</span>
+                      </span>
+                      <span className="text-[14px] leading-snug text-fg-dim">{c.lead}</span>
+                      <span className="mt-auto text-[12.5px] text-fg-faint">
+                        {c.body.length} {c.body.length === 1 ? "part" : "parts"} &rsaquo;
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {gathering.length > 0 && (
+            <section className="flex flex-col gap-4">
+              <button
+                onClick={() => setShowGathering((v) => !v)}
+                aria-expanded={showGathering}
+                className="flex items-center justify-between gap-3 text-left"
+              >
+                <span>
+                  <span className="text-[16px] font-semibold text-fg">Still gathering</span>
+                  <span className="mt-1 block text-[13.5px] leading-snug text-fg-dim">
+                    {gathering.length} more {gathering.length === 1 ? "part opens" : "parts open"} as you write up more
+                    days.
+                  </span>
+                </span>
+                <span className="shrink-0 text-[13px] text-moss">{showGathering ? "Hide" : "Show"}</span>
+              </button>
+              {showGathering && <div className="fade-up grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">{gathering}</div>}
+            </section>
+          )}
+        </>
+      ) : (
+        <section key={current.id} className="fade-up flex flex-col gap-9">
+          <header className="flex items-center gap-4">
+            <span
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
+              style={{ background: `${chapterColor(current.id as ChapterId)}26` }}
+              aria-hidden="true"
+            >
+              <ChapterIcon id={current.id as ChapterId} size={24} />
+            </span>
+            <span>
+              <h2 className="font-serif text-[30px] leading-[1.1] tracking-[-0.015em] text-fg">{current.title}</h2>
+              <p className="mt-1 text-[14.5px] leading-snug text-fg-dim">{current.lead}</p>
+            </span>
           </header>
-          {c.body}
+          <ChapterContext.Provider value={current.id as ChapterId}>{current.body}</ChapterContext.Provider>
+          <button onClick={() => openView("overview")} className="btn-ghost self-start">
+            &larr; Overview
+          </button>
         </section>
-      ))}
+      )}
 
       {expanded && (
         <TopicMonthDialog

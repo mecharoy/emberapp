@@ -172,10 +172,10 @@ describe("formatDayParts", () => {
   it("still splits the day without a check-in, and says when an earlier day ends", () => {
     expect(formatDayParts(null, { lookingBack: true })).toBe(
       [
-        "1. waking up → lunch (time not given)",
-        "2. lunch (time not given) → evening break (time not given)",
-        "3. evening break (time not given) → dinner (time not given)",
-        "4. dinner (time not given) → the end of the day",
+        "1. waking up → lunch",
+        "2. lunch → evening break",
+        "3. evening break → dinner",
+        "4. dinner → the end of the day",
       ].join("\n"),
     );
   });
